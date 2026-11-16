@@ -111,8 +111,13 @@ def snapshot_jpeg(source: str) -> tuple[bytes, int, int] | None:
         return None
     with mss.MSS() as s:
         shot = s.grab(to_pixels([0, 0, 1, 1], rect))
-    img = Image.frombytes("RGB", shot.size, shot.rgb)
+    return jpeg(Image.frombytes("RGB", shot.size, shot.rgb))
+
+
+def jpeg(img: Image.Image) -> tuple[bytes, int, int]:
+    w, h = img.size
+    img = img.copy()
     img.thumbnail((1920, 1920))  # oranlar korunur; bölge oranlı saklandığı için çözünürlük önemsiz
     buf = io.BytesIO()
     img.save(buf, "JPEG", quality=82)
-    return buf.getvalue(), shot.width, shot.height
+    return buf.getvalue(), w, h

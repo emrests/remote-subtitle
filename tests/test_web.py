@@ -363,3 +363,65 @@ async def test_display_path_counts_as_screen(app, port):
         await d.recv()
         r = await _cmd(panel, cmd="get_state")
         assert r["data"]["status"]["clients"] == 1  # panel sayılmaz, yalnız gösterim ekranı
+
+
+def test_ps5_source_never_draws_pc_overlay_but_feeds_tv(monkeypatch):
+    # PS5 kaynağında PC'de pencere yok: (0,0,1920,1080) kare koordinatı, ekranın sol üstü değil
+    a = _overlay_app()
+    a.rt.profile["source"] = "ps5"
+    sent = []
+    monkeypatch.setattr(a, "send_displays", sent.append)
+    a.displays = {object()}
+    a.sync_overlay((0, 0, 1920, 1080))
+    assert a.overlay.shown == [] and any(m["type"] == "cover" and m["box"] for m in sent)
+
+
+class _FakeStream:
+    connected, error = False, None
+
+    def __init__(self, img):
+        self.img, self.hosts = img, []
+
+    def wait_frame(self, host, timeout=15):
+        self.hosts.append(host)
+        return self.img
+
+
+@with_app
+async def test_ps5_listed_and_snapshot_from_stream(app, port):
+    from PIL import Image
+    from rsub import ps5
+    fake = _FakeStream(Image.new("RGB", (1920, 1080), (40, 40, 40)))
+    ps5_stream, ps5.stream = ps5.stream, fake
+    try:
+        app.rt.settings["ps5Host"] = "192.168.1.165"
+        async with connect(f"ws://127.0.0.1:{port}") as ws:
+            r = await _cmd(ws, cmd="list_sources")
+            assert r["data"][0]["id"] == "ps5" and "192.168.1.165" in r["data"][0]["label"]
+            r = await _cmd(ws, id=2, cmd="snapshot", source="ps5")
+            assert r["ok"] and r["data"]["width"] == 1920 and r["data"]["image"].startswith("data:image/jpeg")
+            assert fake.hosts == ["192.168.1.165"]
+    finally:
+        ps5.stream = ps5_stream
+
+
+@with_app
+async def test_ps5_not_listed_until_paired(app, port):
+    app.rt.settings["ps5Host"] = ""
+    async with connect(f"ws://127.0.0.1:{port}") as ws:
+        r = await _cmd(ws, cmd="list_sources")
+        assert all(s["id"] != "ps5" for s in r["data"])
+
+
+@with_app
+async def test_ps5_state_remembers_already_paired_host(app, port, monkeypatch=None):
+    from rsub import ps5
+    orig = ps5.status
+    ps5.status = lambda host: {"name": "PS5-515", "on": True, "paired": True}
+    try:
+        app.rt.settings["ps5Host"] = ""
+        async with connect(f"ws://127.0.0.1:{port}") as ws:
+            r = await _cmd(ws, cmd="ps5_state", host="192.168.1.165")
+            assert r["ok"] and r["data"]["ps5"]["paired"] and app.rt.settings["ps5Host"] == "192.168.1.165"
+    finally:
+        ps5.status = orig

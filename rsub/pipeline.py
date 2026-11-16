@@ -9,7 +9,7 @@ from typing import Any, Callable
 import mss
 from PIL import Image
 
-from . import store
+from . import ps5, store
 from .capture import grab, target_rect, to_pixels
 from .ocr import read_best as ocr  # normal okuma, zayıfsa parlak-yazı yöntemi
 from .speaker import split_speakers
@@ -178,22 +178,32 @@ def _clear(rt: Runtime, state: dict) -> None:
 async def _frame(rt: Runtime, sct, state: dict, tr, t0: float) -> None:
     rt.status["running"] = rt.settings.get("running", True)
     if not rt.status["running"]:  # kullanıcı durdurdu: okuma yapma, ama pencere durumunu göster
-        rt.status["window"] = target_rect(rt.profile["source"]) is not None
+        if rt.profile["source"] == ps5.SOURCE:  # PS5'e durmuşken bağlanma; bölge seçimi için açıldıysa bir süre sonra kapat
+            ps5.stream.stop_if_idle()
+            rt.status["window"] = ps5.stream.connected
+        else:
+            rt.status["window"] = target_rect(rt.profile["source"]) is not None
         _clear(rt, state)
         if rt.on_frame:
             rt.on_frame(None)
         await asyncio.sleep(0.3)
         return
     profile = rt.profile  # panel her an değiştirebilir; her karede yeniden okunur
-    rect = target_rect(profile["source"])
+    if profile["source"] == ps5.SOURCE:  # PS5'ten doğrudan: kare koordinatı = (0, 0, genişlik, yükseklik)
+        frame = await asyncio.to_thread(ps5.stream.latest, rt.settings.get("ps5Host", ""))
+        rect = (0, 0, *frame.size) if frame is not None else None
+    else:
+        rect = target_rect(profile["source"])
     rt.status["window"] = rect is not None
-    if rect is None:  # pencere kapandı/küçüldü
+    rt.status["ps5Error"] = ps5.stream.error if profile["source"] == ps5.SOURCE else None
+    if rect is None:  # pencere kapandı/küçüldü ya da PS5 bağlanıyor
         _clear(rt, state)
         if rt.on_frame:
             rt.on_frame(None)
         await asyncio.sleep(1)
         return
-    shot = grab(sct, to_pixels(profile["region"], rect))
+    box = to_pixels(profile["region"], rect)
+    shot = ps5.crop(frame, box) if profile["source"] == ps5.SOURCE else grab(sct, box)
     t1 = time.perf_counter()
     region_img = Image.frombytes("RGB", shot.size, shot.rgb) if shot is not None and rt.on_frame else None
     rt.known_names.update(rt.profile["speakers"])

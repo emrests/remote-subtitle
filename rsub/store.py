@@ -5,7 +5,7 @@ import json
 import os
 from pathlib import Path
 
-DEFAULT_SETTINGS = {"profile": "Varsayılan", "model": "translategemma:12b", "chiakiPath": "", "running": False, "overlay": True}
+DEFAULT_SETTINGS = {"profile": "Varsayılan", "model": "translategemma:12b", "chiakiPath": "", "running": False, "overlay": True, "ps5Host": ""}
 DEFAULT_STYLE = {"font": "Segoe UI", "size": 48, "color": "#ffffff", "bg": "#000000", "bgOpacity": 0.45,
                  "position": "bottom", "offset": 60, "nameColor": "#ffd166", "blur": 16, "blurMode": "live"}
 

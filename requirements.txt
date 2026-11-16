@@ -12,3 +12,15 @@ pystray
 Pillow
 pytest
 pyspellchecker
+# PS5'ten doğrudan görüntü (Remote Play). pyremoteplay'in netifaces bağımlılığı Python 3.14'te derlenemiyor:
+#   pip install --no-deps pyremoteplay==0.7.6   (ardından aşağıdakiler)
+netifaces-plus
+pyee<9
+async_timeout
+av
+pyps4-2ndscreen
+cryptography
+protobuf
+requests
+PyYAML
+numpy

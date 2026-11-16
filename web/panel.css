@@ -223,3 +223,10 @@ td.actions { width: 1%; white-space: nowrap; }
 .inline-form { display: flex; gap: 8px; align-items: center; }
 
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+
+/* PS5 eşleştirme adımları */
+.steps { margin: 0; padding-left: 22px; display: grid; gap: 18px; }
+.steps li::marker { color: var(--accent); font-weight: 600; }
+.steps li > p { margin: 6px 0 10px; }
+.steps .row { gap: 8px; flex-wrap: wrap; }
+.steps li.done > .stack { display: none; }

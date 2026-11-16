@@ -142,7 +142,9 @@ function renderStatus() {
     chip("Ollama", st.ollama, st.ollama ? "Ollama çalışıyor" : "Ollama çalışmıyor. Ollama uygulamasını başlatın."),
     chip("Model", st.modelReady, st.modelReady ? `${st.model} hazır` : `${st.model || "Model"} kurulu değil. Çeviri modeli bölümünden indirin.`),
     chip("OCR", !!st.ocrLang, st.ocrLang ? `Metin tanıma hazır (Windows OCR, dil: ${st.ocrLang})` : "Windows'ta Latin alfabeli bir OCR dili yok. Ayarlar > Dil'den İngilizce ya da Türkçe ekleyin."),
-    chip("Pencere", st.window, st.window ? "Kaynak bulundu" : "Kaynak pencere bulunamadı ya da küçültülmüş."),
+    S.profile && S.profile.source === "ps5"
+      ? chip("PS5", st.window, st.window ? "PS5'ten görüntü geliyor" : (st.ps5Error || "PS5'e bağlanılıyor ya da çeviri durdurulmuş."))
+      : chip("Pencere", st.window, st.window ? "Kaynak bulundu" : "Kaynak pencere bulunamadı ya da küçültülmüş."),
     chip(`Ekran ${st.clients || 0}`, (st.clients || 0) > 0, "Bağlı gösterim ekranı (TV ya da tarayıcıdaki gösterim sayfası) sayısı"),
   ];
   $("chips").replaceChildren(...chips);
@@ -461,6 +463,52 @@ function renderConn() {
 }
 $("chiaki-path").onchange = (e) => act(async () => { S.settings = await send("save_settings", { settings: { chiakiPath: e.target.value.trim() } }); });
 $("btn-chiaki").onclick = () => act(async () => { await send("launch_chiaki"); toast("chiaki-ng başlatıldı"); });
+
+// ---------- PS5 eşleştirme ----------
+async function loadPs5(host) {
+  const d = await send("ps5_state", host ? { host } : {});
+  S.ps5 = d;
+  const paired = !!(d.ps5 && d.ps5.paired);
+  $("ps5-account").textContent = d.account ? `— ${d.account}` : "";
+  $("ps5-login").closest("li").classList.toggle("done", !!d.account);
+  if (d.host && !$("ps5-host").value) $("ps5-host").value = d.host;
+  const tag = $("ps5-tag");
+  tag.className = "tag " + (paired ? "ok" : d.host ? "warn" : "");
+  tag.textContent = !d.host ? "Eşleştirilmedi" : !d.ps5 ? "PS5'e ulaşılamıyor" : paired ? `Eşleşti: ${d.ps5.name}` : "Eşleştirilmedi";
+  const using = S.profile.source === "ps5";
+  $("ps5-conn").textContent = !paired ? "Önce eşleştirin."
+    : d.connected ? "Bağlı: görüntü geliyor."
+    : d.error ? `Son deneme: ${d.error}`
+    : using ? "Kaynak PS5. Çeviri başlayınca (ya da Kaynak ve bölge'de 'Görüntü al'a basınca) bağlanır."
+    : "Eşleşti. Bu profilde kaynak olarak seçin.";
+  $("btn-ps5-use").disabled = !paired || using;
+  $("btn-ps5-use").textContent = using ? "Kaynak: PS5" : "PS5'i kaynak yap";
+}
+$("btn-ps5-login").onclick = () => act(() => send("ps5_open_login"));
+$("btn-ps5-account").onclick = () => act(async () => {
+  const name = await send("ps5_add_account", { url: $("ps5-redirect").value.trim() });
+  $("ps5-redirect").value = "";
+  toast(`PSN hesabı kaydedildi: ${name}`);
+  await loadPs5();
+});
+$("btn-ps5-pair").onclick = () => act(async () => {
+  const host = $("ps5-host").value.trim();
+  if (!host) throw new Error("PS5'in IP adresini yazın");
+  toast("Eşleştiriliyor…");
+  const r = await send("ps5_pair", { host, pin: $("ps5-pin").value });
+  S.settings = r.settings;
+  $("ps5-pin").value = "";
+  toast(`Eşleşti: ${r.name}`);
+  await loadPs5();
+});
+$("btn-ps5-use").onclick = () => act(async () => {
+  S.profile.source = "ps5"; S.shot = null; saveProfileSoon();
+  await loadSources(); renderRegion();
+  toast("Kaynak PS5 oldu. Kaynak ve bölge'de 'Görüntü al' ile altyazı bölgesini seçin.");
+  await loadPs5();
+});
+$("btn-ps5-check").onclick = () => act(async () => { toast("PS5 yoklanıyor…"); await loadPs5($("ps5-host").value.trim()); });
+document.querySelector('nav button[data-tab="conn"]').addEventListener("click", () => act(() => loadPs5()));
 
 // ---------- başlat ----------
 connectSubtitles(`ws://${location.host}`, onMessage, (up, sock) => {

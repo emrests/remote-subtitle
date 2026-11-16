@@ -5,6 +5,7 @@ import io
 import difflib
 import json
 import mimetypes
+import os
 import socket
 import subprocess
 import sys
@@ -20,7 +21,7 @@ from websockets.asyncio.server import serve
 from websockets.datastructures import Headers
 from websockets.http11 import Response
 
-from . import capture, layout, store
+from . import capture, layout, ps5, store
 from .models import gpu_vram_mb, installed, model_infos, ollama_up, pull, recommend, start_ollama
 from .ocr import make_ocr, ocr_language
 from .pipeline import Runtime, _same, run
@@ -113,7 +114,8 @@ class App:
         """Çeviri kutusunu çizer: PC'de kaynak pencerenin üstüne (katman), TV'ye de aynı resmi konumuyla gönderir.
         TV'deki görünüm PC'dekiyle birebir aynı olur (buzlu cam dahil: chiaki karesi = TV karesi)."""
         s, pending = self.rt.settings, self.rt.pending_box
-        show_pc = self.overlay is not None and s.get("overlay", True)
+        # PS5 kaynağında PC'de oyun penceresi yok: katman yalnız TV'de (rect kare koordinatıdır, ekran değil)
+        show_pc = self.overlay is not None and s.get("overlay", True) and self.rt.profile["source"] != ps5.SOURCE
         show_tv = bool(self.displays)
         lines = [] if pending else self.rt.last_lines  # yeni satır bekliyorsa eski çeviri değil boş kapak
         anchor, n = pending if pending else (self.rt.text_box, self.rt.text_lines)
@@ -276,10 +278,18 @@ class App:
         return store.list_profiles()
 
     async def cmd_list_sources(self, msg):
-        return await asyncio.to_thread(capture.list_sources)
+        found = await asyncio.to_thread(capture.list_sources)
+        host = self.rt.settings.get("ps5Host")
+        return ([{"id": ps5.SOURCE, "label": f"PS5 — doğrudan ({host})"}] if host else []) + found
 
     async def cmd_snapshot(self, msg):
-        shot = await asyncio.to_thread(capture.snapshot_jpeg, msg["source"])
+        if msg["source"] == ps5.SOURCE:
+            img = await asyncio.to_thread(ps5.stream.wait_frame, self.rt.settings.get("ps5Host", ""))
+            if img is None:
+                raise RuntimeError(ps5.stream.error or "PS5'ten görüntü gelmedi; PS5 açık mı?")
+            shot = await asyncio.to_thread(capture.jpeg, img)
+        else:
+            shot = await asyncio.to_thread(capture.snapshot_jpeg, msg["source"])
         if not shot:
             raise RuntimeError("Kaynak bulunamadı ya da küçültülmüş")
         jpg, w, h = shot
@@ -330,6 +340,30 @@ class App:
         self.rt.status["running"] = self.rt.settings["running"]
         self.broadcast({"type": "status", "status": self.status()})
         return self.rt.settings["running"]
+
+    # --- PS5 eşleştirme (Bağlantı sekmesi) ---
+    async def cmd_ps5_state(self, msg):
+        host = msg.get("host", self.rt.settings.get("ps5Host", ""))
+        st = await asyncio.to_thread(ps5.status, host) if host else None
+        if st and st["paired"] and host != self.rt.settings.get("ps5Host"):  # daha önce eşleşmiş PS5: PIN gerekmez
+            self.rt.settings["ps5Host"] = host
+            store.save_settings(self.rt.settings)
+        return {"account": await asyncio.to_thread(ps5.account), "host": host, "ps5": st,
+                "connected": ps5.stream.connected, "error": ps5.stream.error}
+
+    async def cmd_ps5_open_login(self, msg):
+        os.startfile(ps5.login_url())  # Sony'nin kendi giriş sayfası, varsayılan tarayıcıda
+        return None
+
+    async def cmd_ps5_add_account(self, msg):
+        return await asyncio.to_thread(ps5.add_account, msg["url"])
+
+    async def cmd_ps5_pair(self, msg):
+        host = msg["host"].strip()
+        name = await asyncio.to_thread(ps5.pair, host, msg["pin"])
+        self.rt.settings["ps5Host"] = host
+        store.save_settings(self.rt.settings)
+        return {"name": name, "settings": self.rt.settings}
 
     async def cmd_launch_chiaki(self, msg):
         path = self.rt.settings.get("chiakiPath")

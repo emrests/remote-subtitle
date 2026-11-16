@@ -191,8 +191,37 @@
           <p class="muted" id="clients-info"></p>
           <p class="muted">TV bağlanamıyorsa: TV ile bilgisayar aynı ağda olmalı ve Windows güvenlik duvarı 8765 numaralı bağlantı noktasına izin vermeli. Kurulum sihirbazı bu izni ekler.</p>
         </div>
+        <div class="panel stack" id="ps5-panel">
+          <h3>PS5 — doğrudan bağlantı <span class="tag" id="ps5-tag">Eşleştirilmedi</span></h3>
+          <p class="muted">Görüntü PS5'ten ağ üzerinden bu uygulamaya gelir; oyun TV'de oynanmaya devam eder. Eşleştirme bir kez yapılır.</p>
+          <ol class="steps">
+            <li>
+              <b>PSN hesabı</b> <span class="muted" id="ps5-account"></span>
+              <div class="stack" id="ps5-login">
+                <p class="muted">Remote Play için açtığınız hesapla giriş yapın. Giriş sonrası açılan sayfa hata gibi görünebilir; adres çubuğundaki adresin tamamını kopyalayıp buraya yapıştırın.</p>
+                <div class="row"><button class="btn" id="btn-ps5-login">Sony giriş sayfasını aç</button></div>
+                <div class="row"><input type="text" id="ps5-redirect" placeholder="https://remoteplay.dl.playstation.net/remoteplay/redirect?code=…" style="flex:1"><button class="btn" id="btn-ps5-account">Kaydet</button></div>
+              </div>
+            </li>
+            <li>
+              <b>PS5 ile eşleştir</b>
+              <p class="muted">PS5'te o hesapla oturum açın: Ayarlar › Sistem › Uzaktan Oynama › <b>Cihazı Eşleştir</b>. IP adresi: Ayarlar › Ağ › Bağlantı Durumu.</p>
+              <div class="row">
+                <input type="text" id="ps5-host" placeholder="PS5 IP, ör. 192.168.1.165" style="width:220px">
+                <input type="text" id="ps5-pin" placeholder="8 haneli kod" inputmode="numeric" maxlength="9" style="width:150px">
+                <button class="btn" id="btn-ps5-pair">Eşleştir</button>
+              </div>
+            </li>
+            <li>
+              <b>Kaynak olarak kullan</b>
+              <p class="muted" id="ps5-conn"></p>
+              <div class="row"><button class="btn primary" id="btn-ps5-use">PS5'i kaynak yap</button><button class="btn" id="btn-ps5-check">Durumu yenile</button></div>
+            </li>
+          </ol>
+          <p class="muted">PS5 aynı anda tek Remote Play bağlantısı kabul eder: chiaki-ng ya da PS Remote Play uygulaması açıksa kapatın. TV'de "Uzaktan Oynama bağlandı" bildirimi çıkmasın diye PS5'te <i>Uzaktan Oynama Bağlantı Durumunu Gizle</i>'yi açın.</p>
+        </div>
         <div class="panel stack">
-          <h3>Remote Play (chiaki-ng)</h3>
+          <h3>Remote Play (chiaki-ng) — yedek yol</h3>
           <div class="field"><label for="chiaki-path">Program yolu</label>
             <div class="row"><input type="text" id="chiaki-path" placeholder="C:\Program Files\chiaki-ng\chiaki.exe" style="flex:1"><button class="btn" id="btn-chiaki">Başlat</button></div></div>
           <p class="muted">chiaki-ng penceresini ikinci ekranda açık bırakın; küçültülmüş ya da başka bir pencerenin altında kalmış pencere okunamaz. Sesini kapatın, ses zaten TV'den gelir.</p>
