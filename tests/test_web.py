@@ -272,3 +272,12 @@ def test_frozen_blur_renders_once_per_line():
     a.rt.last_lines = [{"speaker": None, "color": None, "en": "Bye.", "tr": "Hoşça kal."}]
     a.sync_overlay((0, 0, 1920, 1080), Image.new("RGB", (960, 108), "blue"))
     assert len(a.overlay.shown) == 2  # yeni satırda yeniden hesaplanır
+
+
+def test_pending_line_shows_blank_cover():
+    a = _overlay_app()
+    a.rt.last_lines = []
+    a.rt.pending_box = ((380, 20, 200, 40), 1)
+    a.sync_overlay((0, 0, 1920, 1080))
+    box, size = a.overlay.shown[-1]
+    assert box["left"] <= 480 + 380 and box["left"] + box["width"] >= 480 + 580  # İngilizce satır kapalı

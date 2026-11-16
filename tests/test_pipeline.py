@@ -131,7 +131,10 @@ def _fake_frame(monkeypatch, text="Hi.", translated="Selam."):
     monkeypatch.setattr(pipeline, "grab", lambda sct, box: None)
     async def fake_ocr(engine, shot):
         calls["ocr"] += 1
-        return text
+        from rsub.ocr import OcrText
+        out = OcrText(text)
+        out.box, out.lines = ((10, 5, 200, 30), 1) if text else (None, 0)
+        return out
     def fake_tr(*a):
         calls["translate"] += 1
         return translated
@@ -227,3 +230,22 @@ def test_stable_ignores_trailing_junk_after_sent():
 def test_stable_emits_genuinely_new_line():
     out = _feed(["Come on, compadre.", "Come on, compadre.", "Ain't you a sorry sight?", "Ain't you a sorry sight?"])
     assert out == [None, "Come on, compadre.", None, "Ain't you a sorry sight?"]
+
+
+def test_new_line_is_covered_before_translation(monkeypatch):
+    _fake_frame(monkeypatch, text="Of course.")
+    seen = []
+    rt = Runtime(settings={"model": "m"}, profile=copy.deepcopy(P), emit=lambda m: None)
+
+    def on_frame(rect, img=None):
+        seen.append((rt.pending_box, list(rt.last_lines)))
+    rt.on_frame = on_frame
+    _run_briefly(rt, 0.3)
+    first = seen[0]
+    assert first[0] is not None and first[1] == []  # ilk karede: kapatılacak yer belli, çeviri henüz yok
+    assert seen[-1][0] is None and seen[-1][1]  # çeviri gelince bekleyen kapanış kalkar
+
+
+def test_default_interval_is_100ms():
+    import inspect
+    assert inspect.signature(run).parameters["interval"].default == 0.1

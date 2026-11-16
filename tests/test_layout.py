@@ -159,3 +159,13 @@ def test_text_vertically_centered_in_pill():
         img = render([{"speaker": None, "color": None, "en": "x", "tr": tr}], style, 500, 90, scale=1.0)
         top, bottom = _ink_box(img)
         assert abs(top - (90 - 1 - bottom)) <= 4, (tr, top, 89 - bottom)  # üst ve alt boşluk eşit
+
+
+def test_blank_pill_covers_without_text():
+    from rsub.layout import pill
+    (x, y, w, h), fitted = pill([], STYLE, 1600, 400, 1.0, (500, 150, 300, 36), 1)
+    assert x <= 500 and x + w >= 800 and y <= 150 and y + h >= 186
+    img = render([], {**STYLE, "bgOpacity": 1.0, "blur": 0}, w, h, 1.0, fitted=fitted, blank=True)
+    assert img is not None and img.size == (w, h)
+    b = img.tobytes()
+    assert not any(b[i] > 200 for i in range(0, len(b), 4))  # beyaz yazı yok, sadece zemin

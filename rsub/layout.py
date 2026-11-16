@@ -138,9 +138,10 @@ def pill(lines: list[dict], style: dict, region_w: int, region_h: int, scale: fl
     return (x, y, w, h), (px, rows)
 
 
-def render(lines: list[dict], style: dict, w: int, h: int, scale: float, backdrop=None, fitted=None):
+def render(lines: list[dict], style: dict, w: int, h: int, scale: float, backdrop=None, fitted=None, blank=False):
+    """blank=True: yazısız kutu (yeni satır göründüğü an İngilizceyi kapatmak için, çeviri gelmeden)."""
     lines = [l for l in lines if l.get("tr")]
-    if not lines or w < 4 or h < 4:
+    if (not lines and not blank) or w < 4 or h < 4:
         return None
     blur = style.get("blur", 0) * scale
     if blur > 0:

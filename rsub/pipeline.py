@@ -77,12 +77,13 @@ class Runtime:
     model_ready: bool = True  # App, Ollama'da model kurulu mu diye günceller
     text_box: tuple | None = None  # gösterilen İngilizce satırın bölgedeki konumu (OCR'dan)
     text_lines: int = 0  # orijinal altyazının satır sayısı
+    pending_box: tuple | None = None  # ((x,y,w,h), satır) — görünen ama henüz çevrilmemiş yeni satır: hemen kapatılır
     on_frame: Callable | None = None  # her karede kaynak dikdörtgeniyle (ya da None) çağrılır: katman konumu
     status: dict = field(default_factory=lambda: {"window": False, "last": None, "avgMs": None,
                                                   "slow": False, "error": None, "running": True})
 
 
-async def run(rt: Runtime, interval: float = 0.15) -> None:
+async def run(rt: Runtime, interval: float = 0.1) -> None:
     state = {"prev": None, "sent": ""}
 
     def tr(en: str) -> str:
@@ -111,6 +112,7 @@ async def run(rt: Runtime, interval: float = 0.15) -> None:
 
 def _clear(rt: Runtime, state: dict) -> None:
     rt.text_box = None
+    rt.pending_box = None
     if rt.last_lines:  # eski altyazı TV'de asılı kalmasın
         rt.last_lines = []
         rt.emit({"type": "lines", "lines": []})
@@ -140,16 +142,20 @@ async def _frame(rt: Runtime, sct, state: dict, tr, t0: float) -> None:
     region_img = Image.frombytes("RGB", shot.size, shot.rgb) if shot is not None and rt.on_frame else None
     text = await ocr(rt.engine, shot)
     t2 = time.perf_counter()
+    # Yeni bir İngilizce satır göründüyse yerini HEMEN kapat (çeviriyi bekleme); çeviri gelince içine yazılır
+    box = getattr(text, "box", None)
+    rt.pending_box = (box, getattr(text, "lines", 0)) if text and box and not _same(text, state["sent"]) else None
+    if rt.on_frame:
+        rt.on_frame(rect, region_img)
     line = stable(state, text)
     if line is None:
-        if rt.on_frame:
-            rt.on_frame(rect, region_img)
         return
     lines, new = await asyncio.to_thread(build_lines, line, profile, tr)
     t3 = time.perf_counter()
     rt.last_lines = lines
     rt.text_box = getattr(line, "box", None)
     rt.text_lines = getattr(line, "lines", 0)
+    rt.pending_box = None
     rt.emit({"type": "lines", "lines": lines})
     if rt.on_frame:
         rt.on_frame(rect, region_img)
