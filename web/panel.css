@@ -83,7 +83,7 @@ section > header p { margin-top: 4px; max-width: 62ch; }
 .stack { display: flex; flex-direction: column; gap: 20px; max-width: 1040px; }
 
 /* ---------- form kontrolleri ---------- */
-button, select, input { font: inherit; color: inherit; }
+button, select, input, textarea { font: inherit; color: inherit; }
 .btn {
   border: 1px solid var(--line); background: var(--ink-2); padding: 7px 14px; border-radius: var(--r-sm);
   cursor: pointer; white-space: nowrap;
@@ -96,7 +96,7 @@ button, select, input { font: inherit; color: inherit; }
 .btn.danger.armed { background: var(--bad); color: #fff; border-color: var(--bad); }
 .btn.ghost { background: transparent; border-color: transparent; color: var(--muted); }
 .btn.ghost:hover { color: var(--text); }
-select, input[type="text"], input[type="number"] {
+select, input[type="text"], input[type="number"], textarea {
   background: var(--ink-2); border: 1px solid var(--line); border-radius: var(--r-sm); padding: 7px 10px; min-width: 0;
 }
 select:hover, input[type="text"]:hover { border-color: #43507a; }
@@ -230,3 +230,4 @@ td.actions { width: 1%; white-space: nowrap; }
 .steps li > p { margin: 6px 0 10px; }
 .steps .row { gap: 8px; flex-wrap: wrap; }
 .steps li.done > .stack { display: none; }
+textarea { width: 100%; resize: vertical; }

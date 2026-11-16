@@ -351,7 +351,9 @@ function fitPreview() {
 new ResizeObserver(fitPreview).observe($("tv-screen"));
 
 // ---------- terimler ----------
+$("game-context").oninput = (e) => { S.profile.context = e.target.value; saveProfileSoon(); };
 function renderGlossary() {
+  if (document.activeElement !== $("game-context")) $("game-context").value = S.profile.context || "";
   const rows = Object.entries(S.profile.glossary);
   $("glossary-empty").hidden = rows.length > 0;
   $("glossary").hidden = rows.length === 0;

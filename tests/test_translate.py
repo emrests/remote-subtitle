@@ -123,3 +123,19 @@ def test_model_commentary_in_parentheses_removed(monkeypatch):
     assert translate("Com?", "m", {}, {}) == "Com?"
     monkeypatch.setattr(translate_mod, "_generate", lambda m, p: "Tamam (sanırım).")
     assert translate("Okay (I guess).", "m", {}, {}) == "Tamam (sanırım)."  # orijinalde parantez varsa kalır
+
+
+def test_game_context_goes_into_prompt():
+    # ölçüm: bağlamsız "ride out" → "bisikletlerimizle", Vahşi Batı bağlamıyla → "atlarımızla"
+    p = build_prompt("We ride out.", {}, "1899 Wild West, outlaws on horseback")
+    assert "Context: 1899 Wild West, outlaws on horseback" in p and p.endswith("We ride out.")
+    assert "Context" not in build_prompt("We ride out.", {})
+
+
+def test_context_change_is_not_served_from_cache(monkeypatch):
+    prompts = []
+    monkeypatch.setattr(translate_mod, "_generate", lambda model, prompt: prompts.append(prompt) or "x")
+    cache = {}
+    translate("Ride.", "m", {}, cache, context="")
+    translate("Ride.", "m", {}, cache, context="Wild West")
+    assert len(prompts) == 2 and "Wild West" in prompts[1]

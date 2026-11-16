@@ -420,3 +420,19 @@ def test_profile_speaker_color_reaches_ocr(monkeypatch):
         except TimeoutError:
             pass
         assert seen and seen[-1] is flag
+
+
+def test_profile_context_reaches_translation(monkeypatch):
+    monkeypatch.setattr(pipeline, "target_rect", lambda src: (0, 0, 10, 10))
+    monkeypatch.setattr(pipeline, "grab", lambda sct, box: None)
+    async def fake_ocr(engine, shot, known=None, by_color=False):
+        return "We ride."
+    monkeypatch.setattr(pipeline, "ocr", fake_ocr)
+    got = []
+    monkeypatch.setattr(pipeline, "translate", lambda *a, **k: got.append(k.get("context")) or "x")
+    rt = Runtime(settings={"model": "m"}, profile={**copy.deepcopy(P), "context": "Wild West"}, emit=lambda m: None)
+    try:
+        asyncio.run(asyncio.wait_for(run(rt, interval=0.01), 0.5))
+    except TimeoutError:
+        pass
+    assert got and got[0] == "Wild West"

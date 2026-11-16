@@ -120,7 +120,8 @@ async def run(rt: Runtime, interval: float = 0.1) -> None:
             raise RuntimeError("model hazır değil")
         try:
             rt.known_names.update(rt.profile["speakers"])
-            out = translate(en, rt.settings["model"], rt.profile["glossary"], rt.cache, known=rt.known_names)
+            out = translate(en, rt.settings["model"], rt.profile["glossary"], rt.cache, known=rt.known_names,
+                            context=rt.profile.get("context", ""))
             rt.status["error"] = None
             return out
         except Exception as e:

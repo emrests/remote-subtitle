@@ -120,8 +120,13 @@ def unprotect(text: str, mapping: dict[str, str]) -> str:
     return text
 
 
-def build_prompt(text: str, glossary: dict[str, str]) -> str:
-    return PROMPT.format(text=text)
+def build_prompt(text: str, glossary: dict[str, str], context: str = "") -> str:
+    """context: oyun profilindeki "oyun hakkında" bilgisi. Ölçüm: bağlamsız "ride out" → "bisikletlerimizle",
+    "1899 Wild West, outlaws on horseback" bağlamıyla → "atlarımızla"."""
+    prompt = PROMPT
+    if context.strip():
+        prompt = PROMPT.replace("Please translate", f"Context: {context.strip()}. Please translate".replace("..", "."))
+    return prompt.format(text=text)
 
 
 def _generate(model: str, prompt: str) -> str:
@@ -132,7 +137,8 @@ def _generate(model: str, prompt: str) -> str:
         return json.load(r)["response"]
 
 
-def translate(text: str, model: str, glossary: dict, cache: dict, known: set[str] | None = None) -> str:
+def translate(text: str, model: str, glossary: dict, cache: dict, known: set[str] | None = None,
+              context: str = "") -> str:
     """known: bilinen isimler (karakterler, daha önce görülenler). Cümle ortasında yeni görülen isimler
     buna eklenir, böylece sonra cümle başında gelseler de korunurlar."""
     known = known if known is not None else set()
@@ -143,9 +149,9 @@ def translate(text: str, model: str, glossary: dict, cache: dict, known: set[str
             first, _, rest = t.partition(" ")
             if first in TITLES.values() and rest:
                 known.add(rest)
-    key = (model, masked, tuple(sorted(mapping.items())))
+    key = (model, context, masked, tuple(sorted(mapping.items())))
     if key not in cache:
-        out = _generate(model, build_prompt(masked, glossary)).strip()
+        out = _generate(model, build_prompt(masked, glossary, context)).strip()
         if _REFUSAL.search(out):  # model çeviri yerine "anlayamadım" dedi: çeviri sayma
             raise ValueError("model metni çeviremedi")
         if "(" not in text:  # orijinalde parantez yoksa modelin eklediği yorum: "Com? (Bu soruya bir cevap gerekiyor.)"
