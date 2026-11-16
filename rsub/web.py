@@ -18,7 +18,7 @@ from websockets.http11 import Response
 
 from . import capture, store
 from .models import gpu_vram_mb, installed, model_infos, ollama_up, pull, recommend, start_ollama
-from .ocr import has_english, make_ocr
+from .ocr import make_ocr, ocr_language
 from .pipeline import Runtime, run
 
 PORT = 8765
@@ -74,7 +74,7 @@ class App:
         self.ollama_started = False
         self.ollama = False
         self.models: set[str] = set()
-        self.ocr_en = False
+        self.ocr_lang: str | None = None
         self.pull_state: dict | None = None
 
     # --- yayın ---
@@ -89,7 +89,7 @@ class App:
     def status(self) -> dict:
         model = self.rt.settings["model"]
         return {**self.rt.status, "ollama": self.ollama, "model": model, "modelReady": model in self.models,
-                "ocrEnglish": self.ocr_en, "clients": len(self.clients), "pull": self.pull_state}
+                "ocrLang": self.ocr_lang, "clients": len(self.clients), "pull": self.pull_state}
 
     async def status_loop(self) -> None:
         while True:
@@ -251,8 +251,10 @@ class App:
 
 async def serve_app(port: int = PORT, web_dir: Path = WEB_DIR, on_show=None, ready=None) -> None:
     app = App(web_dir, on_show)
-    app.ocr_en = has_english()
+    app.ocr_lang = ocr_language()
     app.rt.engine = make_ocr()
+    if app.rt.engine is None:
+        app.rt.status["error"] = "Windows'ta Latin alfabeli bir OCR dili bulunamadı (Ayarlar > Dil'den İngilizce ya da Türkçe ekleyin)." 
     async with serve(app.handler, "0.0.0.0", port, process_request=app.process_request) as server:
         app.port = server.sockets[0].getsockname()[1]
         if ready:

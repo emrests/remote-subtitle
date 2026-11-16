@@ -13,8 +13,9 @@ python -m pytest -q
 
 Gösterim (TV / ikinci ekran): `http://<PC_IP>:8765/display.html`. Arkaya video için `?bg=video.mp4`.
 
-Gerekenler: Ollama (`localhost:11434`) ve Windows İngilizce OCR paketi
-(`Add-WindowsCapability -Online -Name 'Language.OCR~~~en-US~0.0.1.0'`, yönetici). Kurulum sihirbazı bunları kendisi kurar.
+Gerekenler: Ollama (`127.0.0.1:11434`; kurulum sihirbazı kurar). Windows OCR için ayrıca dil paketi gerekmez:
+Latin alfabeli herhangi bir OCR dili (Türkçe Windows'ta `tr` hazır) İngilizce altyazıyı da okur.
+İngilizce paketi kurmak (`Language.OCR~~~en-US~0.0.1.0`) şirket WSUS ortamlarında takılır; RDR2 ölçümünde gerek kalmadı.
 
 Ayarlar ve profiller: `%APPDATA%\remote-subtitle\`.
 

@@ -132,7 +132,7 @@ function renderStatus() {
   const chips = [
     chip("Ollama", st.ollama, st.ollama ? "Ollama çalışıyor" : "Ollama çalışmıyor. Ollama uygulamasını başlatın."),
     chip("Model", st.modelReady, st.modelReady ? `${st.model} hazır` : `${st.model || "Model"} kurulu değil. Çeviri modeli bölümünden indirin.`),
-    chip("OCR", st.ocrEnglish, st.ocrEnglish ? "İngilizce OCR paketi kurulu" : "İngilizce OCR paketi yok, okuma doğruluğu düşük olabilir."),
+    chip("OCR", !!st.ocrLang, st.ocrLang ? `Metin tanıma hazır (Windows OCR, dil: ${st.ocrLang})` : "Windows'ta Latin alfabeli bir OCR dili yok. Ayarlar > Dil'den İngilizce ya da Türkçe ekleyin."),
     chip("Pencere", st.window, st.window ? "Kaynak bulundu" : "Kaynak pencere bulunamadı ya da küçültülmüş."),
     chip(`Ekran ${Math.max(0, (st.clients || 1) - 1)}`, (st.clients || 0) > 1, "Bağlı gösterim ekranı sayısı (bu panel hariç)"),
   ];
