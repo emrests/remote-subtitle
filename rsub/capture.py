@@ -83,6 +83,16 @@ def target_rect(source: str) -> tuple[int, int, int, int] | None:
     return (p.x, p.y, r.right, r.bottom) if r.right > 0 and r.bottom > 0 else None
 
 
+def video_frame(rect: tuple[int, int, int, int]) -> tuple[int, int, int, int]:
+    """Pencere içindeki 16:9 oyun karesi (chiaki/YouTube pencere 16:9 değilse siyah şeritler hariç)."""
+    L, T, W, H = rect
+    if W * 9 > H * 16:  # pencere daha geniş: yanlarda şerit
+        w = round(H * 16 / 9)
+        return L + (W - w) // 2, T, w, H
+    h = round(W * 9 / 16)
+    return L, T + (H - h) // 2, W, h
+
+
 def to_pixels(region: list[float], rect: tuple[int, int, int, int]) -> dict:
     x, y, w, h = region
     L, T, W, H = rect

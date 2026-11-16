@@ -143,7 +143,7 @@ function renderStatus() {
     chip("Model", st.modelReady, st.modelReady ? `${st.model} hazır` : `${st.model || "Model"} kurulu değil. Çeviri modeli bölümünden indirin.`),
     chip("OCR", !!st.ocrLang, st.ocrLang ? `Metin tanıma hazır (Windows OCR, dil: ${st.ocrLang})` : "Windows'ta Latin alfabeli bir OCR dili yok. Ayarlar > Dil'den İngilizce ya da Türkçe ekleyin."),
     chip("Pencere", st.window, st.window ? "Kaynak bulundu" : "Kaynak pencere bulunamadı ya da küçültülmüş."),
-    chip(`Ekran ${Math.max(0, (st.clients || 1) - 1)}`, (st.clients || 0) > 1, "Bağlı gösterim ekranı sayısı (bu panel hariç)"),
+    chip(`Ekran ${st.clients || 0}`, (st.clients || 0) > 0, "Bağlı gösterim ekranı (TV ya da tarayıcıdaki gösterim sayfası) sayısı"),
   ];
   $("chips").replaceChildren(...chips);
 
@@ -181,7 +181,7 @@ function renderStatus() {
     if (st.slow) { const a = document.createElement("span"); a.className = "alert"; a.textContent = `Ortalama ${st.avgMs} ms. Daha küçük bir model deneyin.`; t.append(a); }
   }
   if (st.pull) renderModels();
-  const n = Math.max(0, (st.clients || 1) - 1);
+  const n = st.clients || 0;
   $("clients-info").textContent = n ? `${n} gösterim ekranı bağlı.` : "Şu an bağlı gösterim ekranı yok.";
 }
 
@@ -195,13 +195,13 @@ $("btn-run").onclick = () => act(async () => {
 
 // ---------- çeviri akışı ----------
 function renderFeed(fresh) {
+  // en yeni satır en üstte
   const box = $("feed-rows");
-  const main = document.querySelector("main");
-  const atBottom = main.scrollHeight - main.scrollTop - main.clientHeight < 40;
   $("feed-empty").hidden = S.history.length > 0;
-  box.replaceChildren(...S.history.map((h, i) => {
+  const rows = [...S.history].reverse();
+  box.replaceChildren(...rows.map((h, i) => {
     const row = document.createElement("div");
-    row.className = "feed-row" + (fresh && i === S.history.length - 1 ? " fresh" : "");
+    row.className = "feed-row" + (fresh && i === 0 ? " fresh" : "");
     const time = document.createElement("time");
     time.textContent = new Date(h.t * 1000).toLocaleTimeString("tr-TR", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
     const en = document.createElement("div"); en.className = "en";
@@ -218,7 +218,6 @@ function renderFeed(fresh) {
     row.append(time, en, tr);
     return row;
   }));
-  if (fresh && atBottom && !$("tab-feed").hidden) main.scrollTop = main.scrollHeight;  // alttaysa akışı takip et
 }
 
 // ---------- sekmeler ----------

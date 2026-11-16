@@ -1,6 +1,7 @@
 """Tek port: web/ klasöründen statik dosyalar, WebSocket yayını ve panel komutları."""
 import asyncio
 import base64
+import io
 import difflib
 import json
 import mimetypes
@@ -76,6 +77,7 @@ class App:
         self.history: deque = deque(maxlen=20)  # paneldeki çeviri akışı
         self._overlay_key = None
         self.clients: set = set()
+        self.displays: set = set()  # /display adresinden bağlanan gösterim ekranları (TV, ikinci ekran)
         self.port = PORT
         self.auto_pulled = False
         self.ollama_started = False
@@ -97,24 +99,34 @@ class App:
         if msg["type"] == "lines" and any(l["speaker"] for l in msg["lines"]):
             self.broadcast({"type": "profile", "profile": self.rt.profile})  # yeni karakterler panelde görünsün
 
+    def send_displays(self, msg: dict) -> None:
+        websockets.broadcast(self.displays, json.dumps(msg, ensure_ascii=False))
+
+    def _hide_cover(self) -> None:
+        if self._overlay_key is not None:  # yalnızca gösteriliyorsa gizle (her karede komut gönderme)
+            if self.overlay is not None:
+                self.overlay.hide()
+            self.send_displays({"type": "cover", "box": None})
+            self._overlay_key = None
+
     def sync_overlay(self, rect, backdrop=None) -> None:
-        """Çeviriyi kaynak penceredeki altyazı bölgesinin tam üstüne koyar (İngilizceyi kapatır)."""
-        if self.overlay is None:
-            return
+        """Çeviri kutusunu çizer: PC'de kaynak pencerenin üstüne (katman), TV'ye de aynı resmi konumuyla gönderir.
+        TV'deki görünüm PC'dekiyle birebir aynı olur (buzlu cam dahil: chiaki karesi = TV karesi)."""
         s, pending = self.rt.settings, self.rt.pending_box
+        show_pc = self.overlay is not None and s.get("overlay", True)
+        show_tv = bool(self.displays)
         lines = [] if pending else self.rt.last_lines  # yeni satır bekliyorsa eski çeviri değil boş kapak
         anchor, n = pending if pending else (self.rt.text_box, self.rt.text_lines)
         px_hint = self.rt.pending_px if pending else self.rt.text_px
-        if rect is None or not s.get("running") or not s.get("overlay", True) or (not pending and not any(l["tr"] for l in lines)):
-            if self._overlay_key is not None:  # yalnızca gösteriliyorsa gizle (her karede komut gönderme)
-                self.overlay.hide()
-                self._overlay_key = None
+        if rect is None or not s.get("running") or not (show_pc or show_tv) or (not pending and not any(l["tr"] for l in lines)):
+            self._hide_cover()
             return
         region = capture.to_pixels(self.rt.profile["region"], rect)
         style = self.rt.profile["style"]
         scale = rect[3] / 1080
         blurred = backdrop is not None and style.get("blur", 0) > 0
-        key = (tuple(region.values()), anchor, n, px_hint, bool(pending), json.dumps(lines, sort_keys=True), json.dumps(style, sort_keys=True))
+        key = (tuple(region.values()), anchor, n, px_hint, bool(pending), show_pc, show_tv,
+               json.dumps(lines, sort_keys=True), json.dumps(style, sort_keys=True))
         live = style.get("blurMode", "live") == "live"
         if key == self._overlay_key and not (blurred and live):  # canlı bulanıklıkta zemin her karede değişir
             return
@@ -123,9 +135,19 @@ class App:
         img = layout.render(lines, style, w, h, scale, backdrop=backdrop.crop((x, y, x + w, y + h)) if blurred else None,
                             fitted=fitted, blank=bool(pending))
         if img is None:
-            self.overlay.hide()
-        else:
-            self.overlay.show(box, img)
+            self._overlay_key = key
+            self._hide_cover()
+            return
+        if self.overlay is not None:
+            self.overlay.show(box, img) if show_pc else self.overlay.hide()
+        if show_tv:
+            # konum, chiaki penceresindeki 16:9 oyun karesine göre (siyah şeritler hariç) 0–1 oranı: TV ekranına aynen oturur
+            fx, fy, fw, fh = capture.video_frame(rect)
+            buf = io.BytesIO()
+            img.save(buf, "WEBP", quality=90)
+            self.send_displays({"type": "cover",
+                                "box": [(box["left"] - fx) / fw, (box["top"] - fy) / fh, w / fw, h / fh],
+                                "img": "data:image/webp;base64," + base64.b64encode(buf.getvalue()).decode()})
         self._overlay_key = key
 
     def _remember(self, entry: dict) -> None:
@@ -148,7 +170,7 @@ class App:
     def status(self) -> dict:
         model = self.rt.settings["model"]
         return {**self.rt.status, "ollama": self.ollama, "model": model, "modelReady": model in self.models,
-                "ocrLang": self.ocr_lang, "clients": len(self.clients), "pull": self.pull_state}
+                "ocrLang": self.ocr_lang, "clients": len(self.displays), "pull": self.pull_state}
 
     async def status_loop(self) -> None:
         while True:
@@ -184,6 +206,9 @@ class App:
     # --- WebSocket ---
     async def handler(self, ws) -> None:
         self.clients.add(ws)
+        if ws.request.path.split("?")[0].rstrip("/") == "/display":
+            self.displays.add(ws)
+            self._overlay_key = None  # yeni ekran mevcut kutuyu da alsın
         try:
             await ws.send(json.dumps({"type": "style", "style": self.rt.profile["style"]}, ensure_ascii=False))
             await ws.send(json.dumps({"type": "status", "status": self.status()}, ensure_ascii=False))
@@ -194,6 +219,7 @@ class App:
             pass
         finally:
             self.clients.discard(ws)
+            self.displays.discard(ws)
 
     async def _command(self, ws, raw) -> None:
         try:

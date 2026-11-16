@@ -320,3 +320,46 @@ def test_history_skips_recent_duplicate():
     a._emit({"type": "lines", "lines": []})
     a._emit(_line("Yeah... that's him."))
     assert len(a.history) == 1
+
+
+def test_cover_sent_to_tv_normalized_to_video_frame(monkeypatch):
+    a = _overlay_app()
+    sent = []
+    monkeypatch.setattr(a, "send_displays", sent.append)
+    a.displays = {object()}  # bağlı bir gösterim ekranı var
+    a.rt.text_box = (380, 20, 200, 40)
+    a.sync_overlay((0, 0, 1920, 1080))
+    cov = [m for m in sent if m["type"] == "cover"][-1]
+    x, y, w, h = cov["box"]
+    box, _ = a.overlay.shown[-1]
+    assert abs(x - box["left"] / 1920) < 1e-3 and abs(y - box["top"] / 1080) < 1e-3
+    assert abs(w - box["width"] / 1920) < 1e-3 and cov["img"].startswith("data:image/webp;base64,")
+
+
+def test_cover_sent_even_if_pc_overlay_off(monkeypatch):
+    a = _overlay_app()
+    a.rt.settings["overlay"] = False
+    sent = []
+    monkeypatch.setattr(a, "send_displays", sent.append)
+    a.displays = {object()}
+    a.sync_overlay((0, 0, 1920, 1080))
+    assert a.overlay.shown == [] and any(m["type"] == "cover" and m["box"] for m in sent)
+
+
+def test_cover_hidden_message_when_text_gone(monkeypatch):
+    a = _overlay_app()
+    sent = []
+    monkeypatch.setattr(a, "send_displays", sent.append)
+    a.displays = {object()}
+    a.sync_overlay((0, 0, 1920, 1080))
+    a.rt.last_lines = []
+    a.sync_overlay((0, 0, 1920, 1080))
+    assert sent[-1] == {"type": "cover", "box": None}
+
+
+@with_app
+async def test_display_path_counts_as_screen(app, port):
+    async with connect(f"ws://127.0.0.1:{port}/display") as d, connect(f"ws://127.0.0.1:{port}") as panel:
+        await d.recv()
+        r = await _cmd(panel, cmd="get_state")
+        assert r["data"]["status"]["clients"] == 1  # panel sayılmaz, yalnız gösterim ekranı

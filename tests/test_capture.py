@@ -43,3 +43,13 @@ def test_pick_window_prefers_exact_then_prefix():
 
 def test_list_sources_hides_shell_windows():
     assert "Program Manager" not in [s["id"] for s in list_sources()]
+
+
+def test_video_frame_letterboxed_in_wider_window():
+    from rsub.capture import video_frame
+    # 2560x1600 (16:10) pencerede 16:9 video: üst/alt siyah şerit
+    assert video_frame((-2560, 471, 2560, 1600)) == (-2560, 471 + 80, 2560, 1440)
+    # 1920x1080 zaten 16:9
+    assert video_frame((0, 0, 1920, 1080)) == (0, 0, 1920, 1080)
+    # daha dar pencere: yanlarda şerit
+    assert video_frame((0, 0, 1000, 1000)) == (0, 219, 1000, 562)

@@ -2,32 +2,66 @@
 <html lang="tr">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=1920">
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Altyazı</title>
 <link rel="stylesheet" href="subtitle.css">
 <style>
-  html, body { margin: 0; width: 1920px; height: 1080px; background: #000; overflow: hidden; }
-  /* TV'de burası HDMI penceresi (TVWindow) olacak; işte arkaya video koymak için ?bg=URL */
+  html, body { margin: 0; width: 100%; height: 100%; overflow: hidden; background: transparent; }
+  body.solid { background: #000; }
+  /* 16:9 oyun karesi: TV'de tam ekran, farklı oranlı ekranda ortalanır (siyah şerit) */
+  #frame {
+    position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
+    width: min(100vw, calc(100vh * 16 / 9)); aspect-ratio: 16 / 9;
+  }
   #bg { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; }
+  /* PC'nin çizdiği kutu: konum ve boyut kareye göre yüzde (PC'deki katmanla birebir aynı görünüm) */
+  #cover { position: absolute; display: none; image-rendering: auto; }
+  /* ?mode=text: eski serbest konumlu yazı görünümü (Görünüm > Yalnızca TV ayarları) */
+  #stage { position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; transform-origin: 0 0; display: none; }
   #status { position: absolute; right: 16px; bottom: 12px; color: #888; font: 20px "Segoe UI", sans-serif; }
 </style>
 </head>
 <body>
-<video id="bg" autoplay muted loop playsinline></video>
-<div id="sub" class="sub-layer sub-bottom"></div>
+<div id="frame">
+  <video id="bg" autoplay muted loop playsinline></video>
+  <img id="cover" alt="">
+  <div id="stage"><div id="sub" class="sub-layer sub-bottom"></div></div>
+</div>
 <div id="status">Bağlanıyor…</div>
 <script src="subtitle.js"></script>
 <script>
   var q = new URLSearchParams(location.search);
   var host = q.get("host") || location.host || "localhost:8765";
   if (host.indexOf(":") < 0) host += ":8765";
+  var textMode = q.get("mode") === "text";
   if (q.get("bg")) document.getElementById("bg").src = q.get("bg");
-  var sub = document.getElementById("sub"), statusEl = document.getElementById("status");
+  if (q.get("solid") !== "0" && !q.get("tv")) document.body.classList.add("solid");  // TV'de saydam: altında HDMI görüntüsü
+  var frame = document.getElementById("frame"), cover = document.getElementById("cover");
+  var stage = document.getElementById("stage"), sub = document.getElementById("sub"), statusEl = document.getElementById("status");
   var style = null, lines = [];
-  connectSubtitles("ws://" + host, function (msg) {
+  if (textMode) stage.style.display = "block";
+  function fitStage() { stage.style.transform = "scale(" + (frame.clientWidth / 1920) + ")"; }
+  window.addEventListener("resize", fitStage); fitStage();
+
+  function showCover(msg) {
+    if (textMode) return;
+    if (!msg.box) { cover.style.display = "none"; return; }
+    var b = msg.box;
+    cover.style.left = (b[0] * 100) + "%"; cover.style.top = (b[1] * 100) + "%";
+    cover.style.width = (b[2] * 100) + "%"; cover.style.height = (b[3] * 100) + "%";
+    cover.src = msg.img;
+    cover.style.display = "block";
+  }
+
+  connectSubtitles("ws://" + host + "/display", function (msg) {
+    if (msg.type === "cover") showCover(msg);
+    if (!textMode) return;
     if (msg.type === "style") { style = msg.style; renderSubtitle(sub, lines, style); }
     if (msg.type === "lines") { lines = msg.lines; renderSubtitle(sub, lines, style); }
-  }, function (up) { statusEl.textContent = up ? "" : "Bağlantı yok, yeniden deneniyor…"; });
+  }, function (up) {
+    statusEl.textContent = up ? "" : "PC'ye bağlanılamıyor (" + host + "), yeniden deneniyor…";
+    if (!up) cover.style.display = "none";
+  });
 </script>
 </body>
 </html>
