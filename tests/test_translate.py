@@ -77,3 +77,26 @@ def test_glossary_placeholder_follows_turkish_target_vowel():
     _, m = protect("Use Dead Eye now.", {"Dead Eye": "Ölü Göz"}, set())  # Göz → ö: ek "ü" olmalı
     ph = next(p for p, t in m.items() if t == "Ölü Göz")
     assert [c for c in ph.lower() if c in "aeıioöuü"][-1] in "öü"
+
+
+def test_title_and_name_are_one_unit():
+    masked, m = protect("Now, Mr. Morgan and I,", {}, set())
+    assert list(m.values()) == ["Bay Morgan"] and "Mr" not in masked and "Morgan" not in masked
+
+
+def test_titles_turkish():
+    assert list(protect("Ask Mrs. Adler about it.", {}, set())[1].values()) == ["Bayan Adler"]
+    assert list(protect("Miss Grimshaw won't like this.", {}, set())[1].values()) == ["Bayan Grimshaw"]
+    assert list(protect("Take him to Dr. Joseph now.", {}, set())[1].values()) == ["Dr. Joseph"]
+
+
+def test_title_at_sentence_start_is_protected():
+    assert list(protect("Mr. Morgan, wait for me.", {}, set())[1].values()) == ["Bay Morgan"]
+
+
+def test_name_after_title_becomes_known(monkeypatch):
+    monkeypatch.setattr(translate_mod, "_generate", lambda model, prompt: prompt.rsplit("\n", 1)[-1])
+    known = set()
+    translate("Now, Mr. Morgan and I,", "m", {}, {}, known=known)
+    assert "Morgan" in known
+    assert list(protect("Morgan, are you coming?", {}, known)[1].values()) == ["Morgan"]

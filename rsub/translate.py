@@ -27,6 +27,12 @@ PLACEHOLDERS = {
     "round": ["Rivon", "Dalgor", "Mekrun", "Tasbur", "Velkon", "Zandor"],
     "frontround": ["Zemdül", "Melgöz", "Velkür", "Dersün", "Kortün", "Selmür"],  # ölçüm: en az "ürün" sanılan
 }
+# Unvan + isim tek birim; unvanın noktası cümle sonu değildir. Türkçe karşılığı (yoksa olduğu gibi).
+TITLES = {"Mr": "Bay", "Mrs": "Bayan", "Ms": "Bayan", "Miss": "Bayan", "Mister": "Bay", "Madam": "Madam",
+          "Dr": "Dr.", "St": "St.", "Capt": "Yzb.", "Col": "Alb.", "Gen": "Gen.", "Lt": "Tğm.", "Sgt": "Çvş.",
+          "Rev": "Peder", "Prof": "Prof.", "Sir": "Sir", "Lady": "Leydi", "Lord": "Lord"}
+_TITLE = re.compile(r"(?<![\w'’])(" + "|".join(sorted(TITLES, key=len, reverse=True))
+                    + r")\.?\s+([A-Z][\w'’-]*(?:\s+[A-Z][\w'’-]*)*)")
 _CAPS = re.compile(r"(?<![\w'’])([A-Z][\w'’-]*(?:\s+[A-Z][\w'’-]*)*)")
 _POSSESSIVE = re.compile(r"['’]s$")
 
@@ -64,6 +70,12 @@ def protect(text: str, glossary: dict[str, str], known: set[str]) -> tuple[str, 
     for en in sorted((k for k in glossary if k.strip()), key=len, reverse=True):
         pattern = re.compile(rf"(?<![\w]){re.escape(en)}(?![\w])", re.IGNORECASE)
         text = pattern.sub(lambda m: place(m.group(0), glossary[en]), text)
+
+    def title_repl(m: re.Match) -> str:  # "Mr. Morgan" → "Bay Morgan" (cümle başında da)
+        phrase = m.group(2)
+        name = _POSSESSIVE.sub("", phrase)
+        return place(name, f"{TITLES[m.group(1)]} {name}") + phrase[len(name):]
+    text = _TITLE.sub(title_repl, text)
 
     def repl(m: re.Match) -> str:
         words = m.group(1).split()
@@ -121,7 +133,12 @@ def translate(text: str, model: str, glossary: dict, cache: dict, known: set[str
     buna eklenir, böylece sonra cümle başında gelseler de korunurlar."""
     known = known if known is not None else set()
     masked, mapping = protect(text, glossary, known)
-    known.update(t for t in mapping.values() if t not in glossary.values())
+    for t in mapping.values():  # isimleri öğren (unvanlıysa unvansız hali de: "Bay Morgan" → "Morgan")
+        if t not in glossary.values():
+            known.add(t)
+            first, _, rest = t.partition(" ")
+            if first in TITLES.values() and rest:
+                known.add(rest)
     key = (model, masked, tuple(sorted(mapping.items())))
     if key not in cache:
         cache[key] = unprotect(_generate(model, build_prompt(masked, glossary)).strip(), mapping)
