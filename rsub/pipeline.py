@@ -88,7 +88,7 @@ async def run(rt: Runtime, interval: float = 0.15) -> None:
                 t3 = time.perf_counter()
                 rt.last_lines = lines
                 rt.emit({"type": "lines", "lines": lines})
-                if changed:
+                if changed and rt.profile is profile:  # panel bu arada profili değiştirdiyse eskisini yazma
                     store.save_profile(profile)
                 if line:
                     total = round(1000 * (t3 - t0))
