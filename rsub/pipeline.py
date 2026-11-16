@@ -87,6 +87,7 @@ class Runtime:
     text_lines: int = 0  # orijinal altyazının satır sayısı
     pending_box: tuple | None = None  # ((x,y,w,h), satır) — görünen ama henüz çevrilmemiş yeni satır: hemen kapatılır
     diff_frames: int = 0  # gösterilen satırdan farklı okunan ardışık kare sayısı (OCR titremesine karşı)
+    known_names: set = field(default_factory=set)  # cümle ortasında görülen isimler: cümle başında da korunur
     on_frame: Callable | None = None  # her karede kaynak dikdörtgeniyle (ya da None) çağrılır: katman konumu
     status: dict = field(default_factory=lambda: {"window": False, "last": None, "avgMs": None,
                                                   "slow": False, "error": None, "running": True})
@@ -100,7 +101,8 @@ async def run(rt: Runtime, interval: float = 0.1) -> None:
             rt.status["error"] = "Çeviri modeli hazır değil; hazır olunca çeviri başlar. Şimdilik İngilizce gösteriliyor."
             raise RuntimeError("model hazır değil")
         try:
-            out = translate(en, rt.settings["model"], rt.profile["glossary"], rt.cache)
+            rt.known_names.update(rt.profile["speakers"])
+            out = translate(en, rt.settings["model"], rt.profile["glossary"], rt.cache, known=rt.known_names)
             rt.status["error"] = None
             return out
         except Exception as e:

@@ -2,18 +2,9 @@ from rsub import translate as translate_mod
 from rsub.translate import build_prompt, translate
 
 
-def test_prompt_contains_text_and_only_relevant_terms():
-    p = build_prompt("Arthur rides to Valentine.", {"Arthur": "Arthur", "Valentine": "Valentine", "Dutch": "Dutch"})
-    assert p.endswith("Arthur rides to Valentine.")
-    assert "Valentine = Valentine" in p and "Dutch" not in p
-
-
-def test_prompt_term_match_is_case_insensitive():
-    assert "Dead Eye = Ölü Göz" in build_prompt("use DEAD EYE now", {"Dead Eye": "Ölü Göz"})
-
-
-def test_prompt_without_glossary_is_base_prompt():
-    assert "=" not in build_prompt("Hi.", {})
+def test_prompt_has_no_instruction_text():
+    # TranslateGemma talimatı da çevirip ekrana basıyordu ("Bu sabit çevirileri kullanın: Dutch = Hollandaca")
+    assert "Use these" not in build_prompt("Have you seen Dutch anywhere?", {"Dutch": "Dutch"})
 
 
 def test_translate_uses_cache(monkeypatch):
@@ -28,3 +19,61 @@ def test_translate_uses_cache(monkeypatch):
 def test_ollama_address_is_ipv4_literal():
     # Windows'ta "localhost" önce ::1 denenir; Ollama yalnız 127.0.0.1'de dinlediğinden her istek ~2 sn gecikiyordu
     assert translate_mod.OLLAMA == "http://127.0.0.1:11434"
+
+
+from rsub.translate import protect, unprotect
+
+
+def test_mid_sentence_name_is_protected():
+    masked, m = protect("Have you seen Dutch anywhere?", {}, set())
+    assert "Dutch" not in masked and list(m.values()) == ["Dutch"]
+
+
+def test_sentence_start_word_not_protected_unless_known():
+    masked, m = protect("Dutch says we leave.", {}, set())
+    assert m == {}
+    masked, m = protect("Dutch says we leave.", {}, {"Dutch"})
+    assert list(m.values()) == ["Dutch"]
+
+
+def test_pronoun_I_and_all_caps_not_protected():
+    assert protect("Yes, I think I'm fine, OK?", {}, set())[1] == {}
+    assert protect("Look out, WARNING ahead.", {}, set())[1] == {}
+
+
+def test_multiword_name_single_placeholder():
+    masked, m = protect("We ride to Saint Denis tonight.", {}, set())
+    assert list(m.values()) == ["Saint Denis"]
+
+
+def test_glossary_term_restored_as_target():
+    masked, m = protect("Use Dead Eye when they draw.", {"Dead Eye": "Ölü Göz"}, set())
+    assert "Ölü Göz" in m.values() and "Dead Eye" not in masked
+
+
+def test_unprotect_keeps_turkish_suffix():
+    masked, m = protect("I owe Dutch my life.", {}, set())
+    ph = next(iter(m))
+    assert unprotect(f"{ph}'a hayatımı borçluyum.", m) == "Dutch'a hayatımı borçluyum."
+
+
+def test_placeholder_vowel_matches_name():
+    _, m = protect("Have you met Sadie today?", {}, set())  # son ünlü e → ince ünlülü yer tutucu
+    ph = next(iter(m))
+    assert [c for c in ph.lower() if c in "aeıioöuü"][-1] in "ei"
+
+
+def test_translate_keeps_names(monkeypatch):
+    seen = []
+    def echo(model, prompt):  # model maskeli metni olduğu gibi döndürsün
+        seen.append(prompt)
+        return prompt.rsplit("\n", 1)[-1]
+    monkeypatch.setattr(translate_mod, "_generate", echo)
+    out = translate("Have you seen Dutch anywhere?", "m", {}, {})
+    assert "Dutch" not in seen[0] and "Dutch" in out
+
+
+def test_glossary_placeholder_follows_turkish_target_vowel():
+    _, m = protect("Use Dead Eye now.", {"Dead Eye": "Ölü Göz"}, set())  # Göz → ö: ek "ü" olmalı
+    ph = next(p for p, t in m.items() if t == "Ölü Göz")
+    assert [c for c in ph.lower() if c in "aeıioöuü"][-1] in "öü"

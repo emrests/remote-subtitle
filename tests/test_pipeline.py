@@ -58,7 +58,7 @@ def test_run_emits_translated_lines(monkeypatch):
     async def fake_ocr(engine, shot):
         return "Arthur: Hi."
     monkeypatch.setattr(pipeline, "ocr", fake_ocr)
-    monkeypatch.setattr(pipeline, "translate", lambda text, model, glossary, cache: "Selam.")
+    monkeypatch.setattr(pipeline, "translate", lambda *a, **k: "Selam.")
     sent = []
     rt = Runtime(settings={"model": "m"}, profile=copy.deepcopy(P), emit=sent.append)
     try:
@@ -80,7 +80,7 @@ def test_run_survives_unexpected_error(monkeypatch):
     async def fake_ocr(engine, shot):
         return "Hi."
     monkeypatch.setattr(pipeline, "ocr", fake_ocr)
-    monkeypatch.setattr(pipeline, "translate", lambda *a: "Selam.")
+    monkeypatch.setattr(pipeline, "translate", lambda *a, **k: "Selam.")
     monkeypatch.setattr(pipeline, "ERROR_PAUSE", 0.05)
     sent = []
     rt = Runtime(settings={"model": "m"}, profile=copy.deepcopy(P), emit=sent.append)
@@ -98,7 +98,7 @@ def test_lost_window_clears_subtitle(monkeypatch):
     async def fake_ocr(engine, shot):
         return "Hi."
     monkeypatch.setattr(pipeline, "ocr", fake_ocr)
-    monkeypatch.setattr(pipeline, "translate", lambda *a: "Selam.")
+    monkeypatch.setattr(pipeline, "translate", lambda *a, **k: "Selam.")
     sent = []
     rt = Runtime(settings={"model": "m"}, profile=copy.deepcopy(P), emit=sent.append)
     try:
@@ -114,7 +114,7 @@ def test_run_adds_new_speakers_on_loop(monkeypatch):
     async def fake_ocr(engine, shot):
         return "Sadie: Hi."
     monkeypatch.setattr(pipeline, "ocr", fake_ocr)
-    monkeypatch.setattr(pipeline, "translate", lambda *a: "Selam.")
+    monkeypatch.setattr(pipeline, "translate", lambda *a, **k: "Selam.")
     saved = []
     monkeypatch.setattr(pipeline.store, "save_profile", saved.append)
     rt = Runtime(settings={"model": "m"}, profile=copy.deepcopy(P), emit=lambda m: None)
@@ -135,7 +135,7 @@ def _fake_frame(monkeypatch, text="Hi.", translated="Selam."):
         out = OcrText(text)
         out.box, out.lines = ((10, 5, 200, 30), 1) if text else (None, 0)
         return out
-    def fake_tr(*a):
+    def fake_tr(*a, **k):
         calls["translate"] += 1
         return translated
     monkeypatch.setattr(pipeline, "ocr", fake_ocr)
@@ -265,7 +265,7 @@ def _seq_frame(monkeypatch, seq, translated="Selam."):
         out.box, out.lines = (box, 1) if text else (None, 0)
         return out
     monkeypatch.setattr(pipeline, "ocr", fake_ocr)
-    monkeypatch.setattr(pipeline, "translate", lambda *a: translated)
+    monkeypatch.setattr(pipeline, "translate", lambda *a, **k: translated)
 
 
 def _record(rt):
