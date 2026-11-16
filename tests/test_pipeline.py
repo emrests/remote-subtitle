@@ -370,3 +370,14 @@ def test_more_complete_reading_replaces_partial(monkeypatch):
     _run_briefly(rt, 0.5)
     ens = [m["lines"][0]["en"] for m in sent if m["lines"]]
     assert ens[-1] == "Get to the cliff edge."
+
+
+def test_untranslated_cover_removed_when_text_disappears(monkeypatch):
+    # satırlar hiç sabitlenmeden değişip kayboluyor: boş kapak sonsuza kadar kalmamalı
+    seq = [("Alpha beta gamma.", B), ("Delta epsilon zeta.", B), ("Theta iota kappa.", B)] + [("", None)] * 8
+    _seq_frame(monkeypatch, seq)
+    rt = Runtime(settings={"model": "m"}, profile=copy.deepcopy(P), emit=lambda m: None)
+    frames = _record(rt)
+    _run_briefly(rt, 0.5)
+    assert any(f[0] is not None for f in frames)  # kapak açılmıştı
+    assert frames[-1][0] is None  # yazı gidince kapak da kalktı

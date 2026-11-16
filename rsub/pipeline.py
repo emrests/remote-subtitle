@@ -98,6 +98,7 @@ class Runtime:
     pending_px: float | None = None
     pending_box: tuple | None = None  # ((x,y,w,h), satır) — görünen ama henüz çevrilmemiş yeni satır: hemen kapatılır
     diff_frames: int = 0  # gösterilen satırdan farklı okunan ardışık kare sayısı (OCR titremesine karşı)
+    empty_frames: int = 0  # yazı okunamayan ardışık kare sayısı
     known_names: set = field(default_factory=set)  # cümle ortasında görülen isimler: cümle başında da korunur
     on_frame: Callable | None = None  # her karede kaynak dikdörtgeniyle (ya da None) çağrılır: katman konumu
     status: dict = field(default_factory=lambda: {"window": False, "last": None, "avgMs": None,
@@ -140,7 +141,11 @@ def _track_cover(rt: Runtime, state: dict, text) -> None:
     - Boş kareler kapağı değiştirmez; satırın silinmesine stable() karar verir."""
     box = getattr(text, "box", None)
     if not (text and box):
+        rt.empty_frames += 1
+        if rt.empty_frames >= 2:  # yazı gitti: çevrilmemiş boş kapak da kalksın (yoksa boş kutu asılı kalıyordu)
+            rt.pending_box = rt.pending_px = None
         return
+    rt.empty_frames = 0
     if state["sent"] and _same(text, state["sent"]):
         rt.diff_frames = 0
         rt.pending_box = rt.pending_px = None

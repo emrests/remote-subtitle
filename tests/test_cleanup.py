@@ -33,3 +33,9 @@ def test_keeps_ocr_box_attributes():
     t.box, t.lines = (1, 2, 3, 4), 1
     out, _ = clean(t, set())
     assert out == "Of course." and out.box == (1, 2, 3, 4) and out.lines == 1
+
+
+def test_stray_numbers_at_edges_removed():
+    assert clean("47 Get to the cliff edge", set())[0] == "Get to the cliff edge"
+    assert clean("Get to the cliff edge 12", set())[0] == "Get to the cliff edge"
+    assert clean("I owe you 47 dollars.", set())[0] == "I owe you 47 dollars."  # cümle içi sayı kalır

@@ -107,3 +107,12 @@ def test_model_refusal_is_not_a_translation(monkeypatch):
     monkeypatch.setattr(translate_mod, "_generate", lambda m, p: "Üzgünüm, ancak bu metnin anlamını çözemiyorum. Lütfen daha fazla bağlam sağlayabilir misiniz?")
     with pytest.raises(ValueError):
         translate("e!jîî", "m", {}, {})
+
+
+def test_word_after_leading_number_is_sentence_start():
+    assert protect("47 Get to the cliff edge", {}, set())[1] == {}
+
+
+def test_unprotect_suffix_without_apostrophe():
+    assert unprotect("Tavrini, kayalıkların kenarına yönlendirin.", {"Tavrin": "Get"}) == "Get'i, kayalıkların kenarına yönlendirin."
+    assert unprotect("Tavrin'i gördüm.", {"Tavrin": "Sadie"}) == "Sadie'i gördüm."

@@ -14,6 +14,7 @@ _TOKEN = re.compile(r"[^\W\d_][\w'’]*|\S*\d\S*", re.UNICODE)
 _ASCII_WORD = re.compile(r"^[A-Za-z][A-Za-z'’]*$")
 _SENTENCE_END = ".!?…:\"“"
 GARBAGE_BELOW = 0.6
+_EDGE_NUMBERS = re.compile(r"^\s*\d+\s+|\s+\d+\s*$")
 
 
 def _core(word: str) -> str:
@@ -24,7 +25,7 @@ def clean(text, known: set[str]):
     """(düzeltilmiş metin, puan) döner. Metin OcrText ise kutu/satır bilgisi korunur."""
     ok = total = 0
     out, pos = [], 0
-    s = str(text)
+    s = _EDGE_NUMBERS.sub("", str(text))  # satır başı/sonundaki yalnız sayılar arayüz rakamıdır ("47 Get to…")
     for m in _TOKEN.finditer(s):
         word = m.group(0)
         out.append(s[pos:m.start()])

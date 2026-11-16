@@ -81,7 +81,8 @@ def protect(text: str, glossary: dict[str, str], known: set[str]) -> tuple[str, 
     def repl(m: re.Match) -> str:
         words = m.group(1).split()
         before = text[: m.start()].rstrip()
-        if not before or before[-1] in ".!?…:\"“":  # cümle başı: ilk kelime ancak biliniyorsa isimdir
+        # cümle başı: önünde harf yoksa (yalnız sayı/noktalama: "47 Get") ya da cümle sonu işareti varsa
+        if not re.search(r"[^\W\d_]", before) or before[-1] in ".!?…:\"“":  # ilk kelime ancak biliniyorsa isimdir
             if _POSSESSIVE.sub("", words[0]) not in known:
                 lead, words = words[0], words[1:]
                 if not words:
@@ -112,8 +113,10 @@ def protect(text: str, glossary: dict[str, str], known: set[str]) -> tuple[str, 
 
 
 def unprotect(text: str, mapping: dict[str, str]) -> str:
+    """Yer tutucuyu geri koyar. Model eki kesme işaretsiz bitiştirmiş olabilir ("Tavrini" → "Get'i")."""
     for ph, target in mapping.items():
-        text = re.sub(rf"(?<![\w]){re.escape(ph)}(?![\w])", target, text)
+        text = re.sub(rf"(?<![\w]){re.escape(ph)}([^\W\d_]*)",
+                      lambda m: target + ("'" + m.group(1) if m.group(1) else ""), text)
     return text
 
 
