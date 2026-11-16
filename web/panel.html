@@ -85,15 +85,6 @@
         </div>
         <div class="panel style-form">
           <div class="field"><label for="st-font">Yazı tipi</label><select id="st-font"></select></div>
-          <div class="field"><label for="st-pos">Konum</label>
-            <div class="segmented" id="st-pos" role="group" aria-label="Konum">
-              <button type="button" data-v="bottom">Altta</button><button type="button" data-v="top">Üstte</button>
-            </div>
-          </div>
-          <div class="field"><label for="st-size">Yazı boyutu</label>
-            <div class="row"><input type="range" id="st-size" min="24" max="96" step="2"><output for="st-size" id="o-size"></output></div></div>
-          <div class="field"><label for="st-offset">Kenara uzaklık</label>
-            <div class="row"><input type="range" id="st-offset" min="0" max="400" step="10"><output for="st-offset" id="o-offset"></output></div></div>
           <div class="field"><label for="st-color">Yazı rengi</label><div class="row"><input type="color" id="st-color"></div></div>
           <div class="field"><label for="st-name">İsim rengi</label><div class="row"><input type="color" id="st-name"><span class="muted">Karaktere özel renk yoksa</span></div></div>
           <div class="field"><label for="st-bg">Arka plan</label><div class="row"><input type="color" id="st-bg"></div></div>
@@ -107,6 +98,17 @@
             </div>
           </div>
           <p class="muted">Bulanıklık, kaynağın üstündeki çeviride orijinal İngilizce altyazıyı okunmaz hale getirir; koyuluğu düşük tutabilirsiniz.</p>
+          <h3 class="form-group">Yalnızca TV gösterim sayfası</h3>
+          <p class="muted">Kaynağın üstündeki çeviri her zaman orijinal altyazının yerine ve boyutuna oturur; bu üç ayar onu etkilemez.</p>
+          <div class="field"><label for="st-pos">Konum</label>
+            <div class="segmented" id="st-pos" role="group" aria-label="Konum">
+              <button type="button" data-v="bottom">Altta</button><button type="button" data-v="top">Üstte</button>
+            </div>
+          </div>
+          <div class="field"><label for="st-size">Yazı boyutu</label>
+            <div class="row"><input type="range" id="st-size" min="24" max="96" step="2"><output for="st-size" id="o-size"></output></div></div>
+          <div class="field"><label for="st-offset">Kenara uzaklık</label>
+            <div class="row"><input type="range" id="st-offset" min="0" max="400" step="10"><output for="st-offset" id="o-offset"></output></div></div>
         </div>
       </div>
     </section>

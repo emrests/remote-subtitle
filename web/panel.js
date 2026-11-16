@@ -26,6 +26,12 @@ function onMessage(msg) {
   } else if (msg.type === "status") {
     S.status = msg.status;
     renderStatus();
+  } else if (msg.type === "style" && S.profile && !saveTimer) {
+    // Ayar başka yerden değişti (başka panel, sunucu): formu güncelle ki eski değerler geri kaydedilmesin
+    if (JSON.stringify(msg.style) !== JSON.stringify(S.profile.style)) {
+      S.profile.style = msg.style;
+      renderStyleForm(); renderPreview(); renderChars();
+    }
   } else if (msg.type === "profile" && S.profile && msg.profile.name === S.profile.name) {
     // Pipeline yeni karakter ekledi: sadece karakter listesini al, formdaki düzenlemeleri ezme
     for (const [name, v] of Object.entries(msg.profile.speakers)) if (!(name in S.profile.speakers)) S.profile.speakers[name] = v;
@@ -49,7 +55,7 @@ async function act(fn) {
 let saveTimer = null;
 function saveProfileSoon() {
   clearTimeout(saveTimer);
-  saveTimer = setTimeout(() => act(() => send("save_profile", { profile: S.profile })), 300);
+  saveTimer = setTimeout(() => { saveTimer = null; act(() => send("save_profile", { profile: S.profile })); }, 300);
 }
 
 async function loadState() {

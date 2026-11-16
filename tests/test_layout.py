@@ -109,12 +109,37 @@ def test_pill_matches_original_line_count():
 
 
 def test_pill_font_matches_original_size():
+    # ölçüm: Windows OCR kutu yüksekliği = yazı tipi boyutunun ~0,97'si (Georgia/Segoe, 30-56 px)
     from rsub.layout import pill
-    _, (px, _) = pill(LINE, STYLE, 1600, 400, 1.0, *_anchor(1, line_h=40))
-    assert 28 <= px <= 40  # orijinal satır ~40 px yüksek; ayar 48 olsa da orijinale uyar
+    _, (px, _) = pill(LINE, STYLE, 1600, 400, 1.0, *_anchor(1, line_h=39))
+    assert 38 <= px <= 42  # orijinal 40 px; ayardaki 48 değil orijinal boyut
+
+
+def test_pill_font_matches_original_size_multiline():
+    from rsub.layout import pill
+    # 40 px yazı, 2 satır: kutu yüksekliği ≈ 1,25*40 (satır aralığı) + 0,97*40 ≈ 89
+    _, (px, _) = pill(LINE, STYLE, 1600, 400, 1.0, (300, 60, 700, 89), 2)
+    assert 37 <= px <= 43
 
 
 def test_pill_shrinks_when_lines_do_not_fit_region():
     from rsub.layout import pill
     (x, y, w, h), (px, rows) = pill(TWO_LINE_TR, STYLE, 500, 400, 1.0, *_anchor(1, w=300, x=100))
     assert len(rows) == 1 and w <= 500 and px < 30
+
+
+def test_pill_leaves_margin_for_game_subtitle_box():
+    from rsub.layout import pill
+    (x, y, w, h), _ = pill(LINE, STYLE, 1600, 400, 1.0, (500, 150, 300, 36), 1)
+    assert y <= 150 - 12 and y + h >= 186 + 12  # oyunun kendi koyu kutusu yazıdan ~10-15 px taşar
+    assert x <= 500 - 12 and x + w >= 800 + 12
+
+
+def test_blur_strong_enough_to_erase_text_under_pill():
+    from PIL import Image, ImageDraw
+    src = Image.new("RGB", (600, 70), (30, 30, 30))
+    ImageDraw.Draw(src).rectangle([40, 17, 560, 53], fill="white")  # 36 px yüksek beyaz "yazı" şeridi
+    style = {**STYLE, "bgOpacity": 0.0, "blur": 4}  # kullanıcı düşük bulanıklık seçse bile
+    img = render([{**LINE[0], "speaker": None, "tr": "."}], style, 600, 70, scale=1.0, backdrop=src)
+    col = [img.getpixel((120, y))[0] for y in range(8, 62)]  # Türkçe "." ortada; ondan uzak sütun
+    assert max(col) - min(col) < 70  # şerit eridi: kenarla orta arasında keskin fark yok

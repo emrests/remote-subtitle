@@ -105,7 +105,8 @@ def pill(lines: list[dict], style: dict, region_w: int, region_h: int, scale: fl
     Türkçe aynı sayıda satıra dengeli bölünür; sığmazsa genişler, yine sığmazsa küçülür.
     ((x, y, w, h), (px, satırlar)) döner."""
     if anchor and anchor_lines:
-        px = max(MIN_PX, round(anchor[3] / anchor_lines / 1.15))
+        # Windows OCR kutu yüksekliği ≈ yazı boyutunun 0,97'si; çok satırda araya 1,25 satır aralığı girer
+        px = max(MIN_PX, round(anchor[3] / (0.97 + 1.25 * (anchor_lines - 1))))
     else:
         px = max(MIN_PX, round(style["size"] * scale))
     n = anchor_lines or None
@@ -124,7 +125,9 @@ def pill(lines: list[dict], style: dict, region_w: int, region_h: int, scale: fl
         px = max(MIN_PX, int(px * 0.9))
     if anchor:
         ax, ay, aw, ah = anchor
-        w, h = max(w, aw + 2 * round(px * 0.3)), max(h, ah + 2 * round(px * 0.2))
+        # oyunun kendi altyazı kutusu yazıdan taşar: onu da kapatacak pay bırak (satır yüksekliğinin ~%40'ı)
+        margin = max(12, round(ah / (anchor_lines or 1) * 0.4))
+        w, h = max(w, aw + 2 * margin), max(h, ah + 2 * margin)
         cx, cy = ax + aw / 2, ay + ah / 2
     else:
         cx, cy = region_w / 2, region_h / 2
@@ -139,6 +142,8 @@ def render(lines: list[dict], style: dict, w: int, h: int, scale: float, backdro
     if not lines or w < 4 or h < 4:
         return None
     blur = style.get("blur", 0) * scale
+    if blur > 0:
+        blur = max(blur, h * 0.5)  # altındaki yazıyı eritecek kadar: en az kutu yüksekliğinin yarısı
     if backdrop is not None and blur > 0:
         img = _frosted(backdrop, w, h, blur)
         img.alpha_composite(Image.new("RGBA", (w, h), _rgba(style["bg"], style["bgOpacity"])))
