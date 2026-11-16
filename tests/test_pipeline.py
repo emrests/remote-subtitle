@@ -381,3 +381,14 @@ def test_untranslated_cover_removed_when_text_disappears(monkeypatch):
     _run_briefly(rt, 0.5)
     assert any(f[0] is not None for f in frames)  # kapak açılmıştı
     assert frames[-1][0] is None  # yazı gidince kapak da kalktı
+
+
+def test_fade_in_partials_not_translated(monkeypatch):
+    # gerçek akış: yazı belirirken "tinenn" → "clefinitely then" → "definitely them" — üçü de çevrilmişti
+    seq = ([("That's definitely tinenn.", B)] * 2 + [("That's clefinitely then.", B)] * 2
+           + [("That's definitely them.", B)] * 10)
+    _seq_frame(monkeypatch, seq)
+    sent = []
+    rt = Runtime(settings={"model": "m"}, profile=copy.deepcopy(P), emit=sent.append)
+    _run_briefly(rt, 0.5)
+    assert [m["lines"][0]["en"] for m in sent if m["lines"]] == ["That's definitely them."]

@@ -54,6 +54,12 @@ def stable(state: dict, text: str, score: float = 1.0) -> str | None:
     Ekrandan kalkınca "" döndürür (altyazıyı temizlemek için). Aksi halde None."""
     prev, state["prev"] = state["prev"], text
     if not _same(text, prev):
+        state["run"] = 1
+        return None
+    state["run"] = state.get("run", 1) + 1
+    # tam okunmamış satır (sözlükte olmayan kelime var) yazı belirirken yarım okunmuş olabilir:
+    # değişmeden 4 kare (0,4 sn) kalmadan çevirme ("tinenn" → "then" → "them" üç kez çevriliyordu)
+    if text and score < 0.999 and state["run"] < 4:
         return None
     if _same(text, state["sent"]):
         if text and _norm(text) == _norm(prev) and score > state.get("score", 1.0) + 0.15:

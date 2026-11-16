@@ -39,3 +39,17 @@ def test_stray_numbers_at_edges_removed():
     assert clean("47 Get to the cliff edge", set())[0] == "Get to the cliff edge"
     assert clean("Get to the cliff edge 12", set())[0] == "Get to the cliff edge"
     assert clean("I owe you 47 dollars.", set())[0] == "I owe you 47 dollars."  # cümle içi sayı kalır
+
+
+def test_turkish_letters_in_english_words():
+    assert clean("And much leşs fun to rob him", set())[0] == "And much less fun to rob him"
+
+
+def test_merged_words_split():
+    assert clean("ifhe never finds out about it.", set())[0] == "if he never finds out about it."
+
+
+def test_stray_single_letter_at_start_removed():
+    assert clean("Z No. Cold can wait.", set())[0] == "No. Cold can wait."
+    assert clean("A man walks in.", set())[0] == "A man walks in."
+    assert clean("I know.", set())[0] == "I know."
