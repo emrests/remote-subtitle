@@ -100,3 +100,10 @@ def test_name_after_title_becomes_known(monkeypatch):
     translate("Now, Mr. Morgan and I,", "m", {}, {}, known=known)
     assert "Morgan" in known
     assert list(protect("Morgan, are you coming?", {}, known)[1].values()) == ["Morgan"]
+
+
+def test_model_refusal_is_not_a_translation(monkeypatch):
+    import pytest
+    monkeypatch.setattr(translate_mod, "_generate", lambda m, p: "Üzgünüm, ancak bu metnin anlamını çözemiyorum. Lütfen daha fazla bağlam sağlayabilir misiniz?")
+    with pytest.raises(ValueError):
+        translate("e!jîî", "m", {}, {})

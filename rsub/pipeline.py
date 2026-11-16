@@ -13,6 +13,7 @@ from . import store
 from .capture import grab, target_rect, to_pixels
 from .ocr import ocr
 from .speaker import split_speakers
+from .cleanup import GARBAGE_BELOW, clean
 from .layout import font_px
 from .translate import translate
 
@@ -46,13 +47,20 @@ def _union(a: tuple | None, b: tuple | None) -> tuple | None:
     return x0, y0, x1 - x0, y1 - y0
 
 
-def stable(state: dict, text: str) -> str | None:
+def stable(state: dict, text: str, score: float = 1.0) -> str | None:
     """Metin art arda 2 karede (OCR titremesine rağmen) aynı kaldığında ve son gönderilenden farklıysa döndürür.
+    Aynı satırın belirgin biçimde daha eksiksiz okunan hali (sözlük puanı +0,15) gelirse onu da döndürür
+    (harf harf beliren yazı: "Get to t cliff edg" → "Get to the cliff edge.").
     Ekrandan kalkınca "" döndürür (altyazıyı temizlemek için). Aksi halde None."""
     prev, state["prev"] = state["prev"], text
-    if not _same(text, prev) or _same(text, state["sent"]):
+    if not _same(text, prev):
         return None
-    state["sent"] = text
+    if _same(text, state["sent"]):
+        if text and _norm(text) == _norm(prev) and score > state.get("score", 1.0) + 0.15:
+            state["sent"], state["score"] = text, score
+            return text
+        return None
+    state["sent"], state["score"] = text, score
     return text
 
 
@@ -178,11 +186,15 @@ async def _frame(rt: Runtime, sct, state: dict, tr, t0: float) -> None:
     t1 = time.perf_counter()
     region_img = Image.frombytes("RGB", shot.size, shot.rgb) if shot is not None and rt.on_frame else None
     text = await ocr(rt.engine, shot)
+    rt.known_names.update(rt.profile["speakers"])
+    text, score = clean(text, rt.known_names) if text else (text, 0.0)
+    if text and score < GARBAGE_BELOW:  # çöp okuma ("2LİÇJ3"): çevirme, boş kare say
+        text = type(text)("") if hasattr(text, "box") else ""
     t2 = time.perf_counter()
     _track_cover(rt, state, text)
     if rt.on_frame:
         rt.on_frame(rect, region_img)
-    line = stable(state, text)
+    line = stable(state, text, score)
     if line is None:
         return
     lines, new = await asyncio.to_thread(build_lines, line, profile, tr)

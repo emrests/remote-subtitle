@@ -350,3 +350,23 @@ def test_pending_size_not_inherited_by_next_line(monkeypatch):
     _run_briefly(rt, 0.6)
     pend_px = [px for box, px in seen if box and box[0] == small]  # B için açılan boş kapak
     assert pend_px and all(px < 45 for px in pend_px)  # iptal edilen büyük kapağın boyutu devralınmaz
+
+
+def test_garbage_reading_is_not_translated(monkeypatch):
+    seq = [("Get t he Cli j 2LIÇJ3", B)] * 6
+    _seq_frame(monkeypatch, seq)
+    sent = []
+    rt = Runtime(settings={"model": "m"}, profile=copy.deepcopy(P), emit=sent.append)
+    frames = _record(rt)
+    _run_briefly(rt, 0.3)
+    assert sent == [] and all(f[0] is None for f in frames)  # ne çeviri ne kapak
+
+
+def test_more_complete_reading_replaces_partial(monkeypatch):
+    seq = [("Get to t cliff edg", B)] * 4 + [("Get to the cliff edge.", B)] * 8
+    _seq_frame(monkeypatch, seq)
+    sent = []
+    rt = Runtime(settings={"model": "m"}, profile=copy.deepcopy(P), emit=sent.append)
+    _run_briefly(rt, 0.5)
+    ens = [m["lines"][0]["en"] for m in sent if m["lines"]]
+    assert ens[-1] == "Get to the cliff edge."

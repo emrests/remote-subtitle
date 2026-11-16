@@ -11,3 +11,4 @@ pywebview
 pystray
 Pillow
 pytest
+pyspellchecker

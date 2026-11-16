@@ -35,6 +35,7 @@ _TITLE = re.compile(r"(?<![\w'’])(" + "|".join(sorted(TITLES, key=len, reverse
                     + r")\.?\s+([A-Z][\w'’-]*(?:\s+[A-Z][\w'’-]*)*)")
 _CAPS = re.compile(r"(?<![\w'’])([A-Z][\w'’-]*(?:\s+[A-Z][\w'’-]*)*)")
 _POSSESSIVE = re.compile(r"['’]s$")
+_REFUSAL = re.compile(r"^(Üzgünüm|Maalesef|Özür dilerim)\b.*(metn|bağlam|anlam|çevir)", re.IGNORECASE | re.DOTALL)
 
 
 def _vowel_class(word: str) -> str:
@@ -141,5 +142,8 @@ def translate(text: str, model: str, glossary: dict, cache: dict, known: set[str
                 known.add(rest)
     key = (model, masked, tuple(sorted(mapping.items())))
     if key not in cache:
-        cache[key] = unprotect(_generate(model, build_prompt(masked, glossary)).strip(), mapping)
+        out = _generate(model, build_prompt(masked, glossary)).strip()
+        if _REFUSAL.search(out):  # model çeviri yerine "anlayamadım" dedi: çeviri sayma
+            raise ValueError("model metni çeviremedi")
+        cache[key] = unprotect(out, mapping)
     return cache[key]
