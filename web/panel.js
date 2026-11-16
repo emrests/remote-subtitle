@@ -279,6 +279,7 @@ function renderStyleForm() {
   $("st-op").value = st.bgOpacity; $("o-op").value = "%" + Math.round(st.bgOpacity * 100);
   $("st-blur").value = st.blur ?? 16; $("o-blur").value = (st.blur ?? 16) + " px";
   $("st-pos").querySelectorAll("button").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.v === st.position)));
+  $("st-blurmode").querySelectorAll("button").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.v === (st.blurMode || "live"))));
 }
 
 function setStyle(key, value) {
@@ -295,6 +296,7 @@ $("st-bg").oninput = (e) => setStyle("bg", e.target.value);
 $("st-op").oninput = (e) => setStyle("bgOpacity", +e.target.value);
 $("st-blur").oninput = (e) => setStyle("blur", +e.target.value);
 $("st-pos").querySelectorAll("button").forEach((b) => (b.onclick = () => setStyle("position", b.dataset.v)));
+$("st-blurmode").querySelectorAll("button").forEach((b) => (b.onclick = () => setStyle("blurMode", b.dataset.v)));
 
 function renderPreview() {
   const lines = SAMPLE.map((l) => ({ ...l, color: (S.profile.speakers[l.speaker] || {}).color || S.profile.style.nameColor }));

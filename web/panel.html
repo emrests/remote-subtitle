@@ -101,6 +101,11 @@
             <div class="row"><input type="range" id="st-op" min="0" max="1" step="0.05"><output for="st-op" id="o-op"></output></div></div>
           <div class="field"><label for="st-blur">Arka plan bulanıklığı</label>
             <div class="row"><input type="range" id="st-blur" min="0" max="40" step="2"><output for="st-blur" id="o-blur"></output></div></div>
+          <div class="field"><label for="st-blurmode">Bulanıklık türü</label>
+            <div class="segmented" id="st-blurmode" role="group" aria-label="Bulanıklık türü">
+              <button type="button" data-v="live" title="Arkadaki sahneyle birlikte hareket eder; saniyede ~6 kare güncellenir">Canlı</button><button type="button" data-v="frozen" title="Her satırda bir kez hesaplanır; takılmaz ama kamera hareketinde sahneyle uyuşmaz">Sabit</button>
+            </div>
+          </div>
           <p class="muted">Bulanıklık, kaynağın üstündeki çeviride orijinal İngilizce altyazıyı okunmaz hale getirir; koyuluğu düşük tutabilirsiniz.</p>
         </div>
       </div>

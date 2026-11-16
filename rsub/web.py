@@ -104,7 +104,8 @@ class App:
         scale = rect[3] / 1080
         blurred = backdrop is not None and style.get("blur", 0) > 0
         key = (tuple(region.values()), self.rt.text_box, self.rt.text_lines, json.dumps(lines, sort_keys=True), json.dumps(style, sort_keys=True))
-        if key == self._overlay_key and not blurred:  # bulanık zeminde arka plan her karede değişir
+        live = style.get("blurMode", "live") == "live"
+        if key == self._overlay_key and not (blurred and live):  # canlı bulanıklıkta zemin her karede değişir
             return
         (x, y, w, h), fitted = layout.pill(lines, style, region["width"], region["height"], scale,
                                            self.rt.text_box, self.rt.text_lines)

@@ -260,3 +260,15 @@ def test_overlay_uses_original_line_count():
     finally:
         web.layout.render = real
     assert seen["rows"] == 3
+
+
+def test_frozen_blur_renders_once_per_line():
+    from PIL import Image
+    a = _overlay_app()
+    a.rt.profile["style"].update(blur=16, blurMode="frozen")
+    a.sync_overlay((0, 0, 1920, 1080), Image.new("RGB", (960, 108), "red"))
+    a.sync_overlay((0, 0, 1920, 1080), Image.new("RGB", (960, 108), "blue"))
+    assert len(a.overlay.shown) == 1  # aynı satırda zemin sabit kalır
+    a.rt.last_lines = [{"speaker": None, "color": None, "en": "Bye.", "tr": "Hoşça kal."}]
+    a.sync_overlay((0, 0, 1920, 1080), Image.new("RGB", (960, 108), "blue"))
+    assert len(a.overlay.shown) == 2  # yeni satırda yeniden hesaplanır
