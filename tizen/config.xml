@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Samsung TV (Tizen) uygulaması: HDMI girişini (PS5) tam ekran gösterir, üstüne PC'deki çeviri katmanını koyar. -->
+<widget xmlns="http://www.w3.org/ns/widgets" xmlns:tizen="http://tizen.org/ns/widgets"
+        id="http://remote-subtitle.local/tv" version="0.1.0" viewmodes="maximized">
+  <tizen:application id="RmSubTvApp.RemoteSubtitle" package="RmSubTvApp" required_version="2.3"/>
+  <tizen:profile name="tv-samsung"/>
+  <name>remote-subtitle</name>
+  <icon src="icon.png"/>
+  <content src="index.html"/>
+  <feature name="http://tizen.org/feature/screen.size.normal.1080.1920"/>
+
+  <!-- HDMI görüntüsünü uygulama içinde göstermek (TVWindow) — public seviye -->
+  <tizen:privilege name="http://tizen.org/privilege/tv.window"/>
+  <!-- kumanda renkli tuşları -->
+  <tizen:privilege name="http://tizen.org/privilege/tv.inputdevice"/>
+  <!-- PC'deki çeviri sunucusuna bağlanmak -->
+  <tizen:privilege name="http://tizen.org/privilege/internet"/>
+  <access origin="*" subdomains="true"/>
+
+  <tizen:setting screen-orientation="landscape" context-menu="disable" background-support="disable"
+                 encryption="disable" install-location="auto" hwkey-event="enable"/>
+</widget>
