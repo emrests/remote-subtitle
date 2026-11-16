@@ -99,14 +99,22 @@ def _span(lines: list[dict], style: dict, px: int) -> float:
     return sum(r["width"] for r in _rows(lines, style, px, 10 ** 9))
 
 
-def pill(lines: list[dict], style: dict, region_w: int, region_h: int, scale: float, anchor, anchor_lines=None):
+def font_px(box_h: float, lines: int) -> float:
+    """OCR kutu yüksekliğinden yazı boyutu: kutu ≈ 0,97·px (tek satır), her ek satır +1,25·px (ölçüldü)."""
+    return box_h / (0.97 + 1.25 * (max(1, lines) - 1))
+
+
+def pill(lines: list[dict], style: dict, region_w: int, region_h: int, scale: float, anchor, anchor_lines=None,
+         px_hint: float | None = None):
     """Çevirinin kutusu. İngilizce altyazının (anchor: bölgeye göre x,y,w,h) yerine oturur ve onu tamamen kapatır.
     Orijinalin satır sayısı (anchor_lines) biliniyorsa yazı boyutu orijinal satır yüksekliğinden alınır ve
     Türkçe aynı sayıda satıra dengeli bölünür; sığmazsa genişler, yine sığmazsa küçülür.
     ((x, y, w, h), (px, satırlar)) döner."""
-    if anchor and anchor_lines:
-        # Windows OCR kutu yüksekliği ≈ yazı boyutunun 0,97'si; çok satırda araya 1,25 satır aralığı girer
-        px = max(MIN_PX, round(anchor[3] / (0.97 + 1.25 * (anchor_lines - 1))))
+    # px_hint: satır sabitlendiği karede ölçülen boyut — kapatma alanı büyüse de yazı büyümez
+    if px_hint:
+        px = max(MIN_PX, round(px_hint))
+    elif anchor and anchor_lines:
+        px = max(MIN_PX, round(font_px(anchor[3], anchor_lines)))
     else:
         px = max(MIN_PX, round(style["size"] * scale))
     n = anchor_lines or None
@@ -126,8 +134,7 @@ def pill(lines: list[dict], style: dict, region_w: int, region_h: int, scale: fl
     if anchor:
         ax, ay, aw, ah = anchor
         # oyunun kendi altyazı kutusu yazıdan taşar (RDR2'de yanlara daha çok): onu da kapatacak pay bırak
-        line_h = ah / (anchor_lines or 1)
-        mx, my = max(14, round(line_h * 0.8)), max(12, round(line_h * 0.45))
+        mx, my = max(14, round(px * 0.78)), max(12, round(px * 0.44))  # paylar yazı boyutuna göre
         w, h = max(w, aw + 2 * mx), max(h, ah + 2 * my)
         cx, cy = ax + aw / 2, ay + ah / 2
     else:

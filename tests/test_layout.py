@@ -169,3 +169,10 @@ def test_blank_pill_covers_without_text():
     assert img is not None and img.size == (w, h)
     b = img.tobytes()
     assert not any(b[i] > 200 for i in range(0, len(b), 4))  # beyaz yazı yok, sadece zemin
+
+
+def test_font_size_comes_from_hint_not_from_grown_cover():
+    from rsub.layout import pill
+    # kapatma alanı iki satır yüksekliğine büyümüş (başka yazı karıştı) ama gerçek satır 40 px
+    _, (px, _) = pill(LINE, STYLE, 1600, 400, 1.0, (300, 60, 700, 120), 1, px_hint=40)
+    assert 38 <= px <= 42

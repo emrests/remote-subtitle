@@ -103,6 +103,7 @@ class App:
         s, pending = self.rt.settings, self.rt.pending_box
         lines = [] if pending else self.rt.last_lines  # yeni satır bekliyorsa eski çeviri değil boş kapak
         anchor, n = pending if pending else (self.rt.text_box, self.rt.text_lines)
+        px_hint = self.rt.pending_px if pending else self.rt.text_px
         if rect is None or not s.get("running") or not s.get("overlay", True) or (not pending and not any(l["tr"] for l in lines)):
             if self._overlay_key is not None:  # yalnızca gösteriliyorsa gizle (her karede komut gönderme)
                 self.overlay.hide()
@@ -112,11 +113,11 @@ class App:
         style = self.rt.profile["style"]
         scale = rect[3] / 1080
         blurred = backdrop is not None and style.get("blur", 0) > 0
-        key = (tuple(region.values()), anchor, n, bool(pending), json.dumps(lines, sort_keys=True), json.dumps(style, sort_keys=True))
+        key = (tuple(region.values()), anchor, n, px_hint, bool(pending), json.dumps(lines, sort_keys=True), json.dumps(style, sort_keys=True))
         live = style.get("blurMode", "live") == "live"
         if key == self._overlay_key and not (blurred and live):  # canlı bulanıklıkta zemin her karede değişir
             return
-        (x, y, w, h), fitted = layout.pill(lines, style, region["width"], region["height"], scale, anchor, n)
+        (x, y, w, h), fitted = layout.pill(lines, style, region["width"], region["height"], scale, anchor, n, px_hint)
         box = {"left": region["left"] + x, "top": region["top"] + y, "width": w, "height": h}
         img = layout.render(lines, style, w, h, scale, backdrop=backdrop.crop((x, y, x + w, y + h)) if blurred else None,
                             fitted=fitted, blank=bool(pending))

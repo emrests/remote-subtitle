@@ -323,3 +323,30 @@ def test_real_new_line_switches_after_two_frames(monkeypatch):
     frames = _record(rt)
     _run_briefly(rt, 0.5)
     assert any(f[0] is not None for f in frames[5:])  # yeni satır boş kutuyla kapatıldı
+
+
+def test_font_size_fixed_while_line_shown(monkeypatch):
+    normal, tall = (100, 50, 400, 39), (100, 50, 400, 120)  # bir karede altındaki ipucu da okundu
+    seq = [(LINE_A, normal)] * 4 + [(LINE_A, tall)] + [(LINE_A, normal)] * 10
+    _seq_frame(monkeypatch, seq)
+    rt = Runtime(settings={"model": "m"}, profile=copy.deepcopy(P), emit=lambda m: None)
+    sizes = []
+    rt.on_frame = lambda rect, img=None: sizes.append(rt.text_px)
+    _run_briefly(rt, 0.4)
+    shown = [s for s in sizes if s]
+    assert shown and max(shown) - min(shown) < 1  # yazı boyutu satır boyunca sabit
+    assert 38 <= shown[0] <= 42
+
+
+def test_pending_size_not_inherited_by_next_line(monkeypatch):
+    big, small = (100, 50, 400, 80), (100, 50, 400, 39)
+    # gösterilen satır A; iki kare yanlış/büyük okuma (bekleyen kapak açılır), sonra A'ya dönülür; sonra yeni satır B
+    seq = ([(LINE_A, small)] * 4 + [("Zzz qqq vvv www", big), ("Yyy ppp kkk jjj", big)] + [(LINE_A, small)] * 3
+           + [("Totally different words now.", small)] * 8)
+    _seq_frame(monkeypatch, seq)
+    rt = Runtime(settings={"model": "m"}, profile=copy.deepcopy(P), emit=lambda m: None)
+    seen = []
+    rt.on_frame = lambda rect, img=None: seen.append((rt.pending_box, rt.pending_px))
+    _run_briefly(rt, 0.6)
+    pend_px = [px for box, px in seen if box and box[0] == small]  # B için açılan boş kapak
+    assert pend_px and all(px < 45 for px in pend_px)  # iptal edilen büyük kapağın boyutu devralınmaz

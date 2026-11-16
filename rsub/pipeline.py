@@ -13,6 +13,7 @@ from . import store
 from .capture import grab, target_rect, to_pixels
 from .ocr import ocr
 from .speaker import split_speakers
+from .layout import font_px
 from .translate import translate
 
 SLOW_MS = 1000
@@ -85,6 +86,8 @@ class Runtime:
     model_ready: bool = True  # App, Ollama'da model kurulu mu diye günceller
     text_box: tuple | None = None  # gösterilen İngilizce satırın bölgedeki konumu (OCR'dan)
     text_lines: int = 0  # orijinal altyazının satır sayısı
+    text_px: float | None = None  # gösterilen satırın yazı boyutu: sabitlendiği tek kareden, satır boyunca sabit
+    pending_px: float | None = None
     pending_box: tuple | None = None  # ((x,y,w,h), satır) — görünen ama henüz çevrilmemiş yeni satır: hemen kapatılır
     diff_frames: int = 0  # gösterilen satırdan farklı okunan ardışık kare sayısı (OCR titremesine karşı)
     known_names: set = field(default_factory=set)  # cümle ortasında görülen isimler: cümle başında da korunur
@@ -132,17 +135,20 @@ def _track_cover(rt: Runtime, state: dict, text) -> None:
         return
     if state["sent"] and _same(text, state["sent"]):
         rt.diff_frames = 0
-        rt.pending_box = None
+        rt.pending_box = rt.pending_px = None
         rt.text_box = _union(rt.text_box, box)
         return
     rt.diff_frames += 1
     if not rt.last_lines or rt.diff_frames >= 2:
         prev = rt.pending_box[0] if rt.pending_box else None
         rt.pending_box = (_union(prev, box), getattr(text, "lines", 0))
+        if rt.pending_px is None:
+            rt.pending_px = font_px(box[3], getattr(text, "lines", 0))
 
 
 def _clear(rt: Runtime, state: dict) -> None:
     rt.text_box = None
+    rt.text_px = rt.pending_px = None
     rt.pending_box = None
     if rt.last_lines:  # eski altyazı TV'de asılı kalmasın
         rt.last_lines = []
@@ -184,7 +190,9 @@ async def _frame(rt: Runtime, sct, state: dict, tr, t0: float) -> None:
     rt.last_lines = lines
     rt.text_box = _union(rt.pending_box[0] if rt.pending_box else None, getattr(line, "box", None))
     rt.text_lines = getattr(line, "lines", 0)
-    rt.pending_box = None
+    lb = getattr(line, "box", None)
+    rt.text_px = font_px(lb[3], rt.text_lines) if lb else None
+    rt.pending_box = rt.pending_px = None
     rt.diff_frames = 0
     rt.emit({"type": "lines", "lines": lines})
     if rt.on_frame:
