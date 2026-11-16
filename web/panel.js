@@ -187,7 +187,7 @@ $("source").onchange = (e) => { S.profile.source = e.target.value; S.shot = null
 
 $("btn-snap").onclick = () => act(async () => {
   const d = await send("snapshot", { source: S.profile.source });
-  S.shot = "data:image/png;base64," + d.png;
+  S.shot = d.image;
   renderRegion(); renderPreview();
 });
 

@@ -21,3 +21,21 @@ def test_ollama_up_survives_non_ollama_server(monkeypatch):
         raise http.client.BadStatusLine("x")
     monkeypatch.setattr(models, "_get", bad)
     assert models.ollama_up() is False and models.installed() == set()
+
+
+def test_start_ollama_without_install(monkeypatch, tmp_path):
+    from rsub import models
+    monkeypatch.setenv("LOCALAPPDATA", str(tmp_path))
+    monkeypatch.setenv("ProgramFiles", str(tmp_path))
+    assert models.start_ollama() is False
+
+
+def test_start_ollama_launches_serve(monkeypatch, tmp_path):
+    from rsub import models
+    exe = tmp_path / "Programs" / "Ollama" / "ollama.exe"
+    exe.parent.mkdir(parents=True)
+    exe.write_bytes(b"")
+    monkeypatch.setenv("LOCALAPPDATA", str(tmp_path))
+    calls = []
+    monkeypatch.setattr(models.subprocess, "Popen", lambda args, **k: calls.append(args))
+    assert models.start_ollama() is True and calls == [[str(exe), "serve"]]

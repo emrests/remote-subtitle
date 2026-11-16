@@ -17,7 +17,7 @@ from websockets.datastructures import Headers
 from websockets.http11 import Response
 
 from . import capture, store
-from .models import gpu_vram_mb, installed, model_infos, ollama_up, pull
+from .models import gpu_vram_mb, installed, model_infos, ollama_up, pull, recommend, start_ollama
 from .ocr import has_english, make_ocr
 from .pipeline import Runtime, run
 
@@ -60,11 +60,18 @@ class App:
     def __init__(self, web_dir: Path, on_show: Callable[[], None] | None):
         self.web_dir = web_dir.resolve()
         self.on_show = on_show
+        first_run = not store.settings_exist()
         settings = store.load_settings()
+        self.vram = None
+        if first_run:  # ilk açılış: ekran kartına uygun modeli seç
+            self.vram = gpu_vram_mb()
+            settings["model"] = recommend(self.vram)
+            store.save_settings(settings)
         self.rt = Runtime(settings, store.load_profile(settings["profile"]), self._emit)
         self.clients: set = set()
         self.port = PORT
-        self.vram = None
+        self.auto_pulled = False
+        self.ollama_started = False
         self.ollama = False
         self.models: set[str] = set()
         self.ocr_en = False
@@ -88,7 +95,10 @@ class App:
         while True:
             try:
                 self.ollama = await asyncio.to_thread(ollama_up)
+                if not self.ollama and not self.ollama_started:
+                    self.ollama_started = await asyncio.to_thread(start_ollama)
                 self.models = await asyncio.to_thread(installed) if self.ollama else set()
+                self.maybe_auto_pull()
                 self.broadcast({"type": "status", "status": self.status()})
             except Exception as e:  # durum döngüsü de sunucuyu öldürmesin
                 self.rt.status["error"] = f"Durum hatası: {e}"
@@ -181,21 +191,32 @@ class App:
         return await asyncio.to_thread(capture.list_sources)
 
     async def cmd_snapshot(self, msg):
-        shot = await asyncio.to_thread(capture.snapshot_png, msg["source"])
+        shot = await asyncio.to_thread(capture.snapshot_jpeg, msg["source"])
         if not shot:
             raise RuntimeError("Kaynak bulunamadı ya da küçültülmüş")
-        png, w, h = shot
-        return {"png": base64.b64encode(png).decode(), "width": w, "height": h}
+        jpg, w, h = shot
+        return {"image": "data:image/jpeg;base64," + base64.b64encode(jpg).decode(), "width": w, "height": h}
 
     async def cmd_save_settings(self, msg):
         self.rt.settings.update(msg["settings"])
         store.save_settings(self.rt.settings)
         return self.rt.settings
 
+    def maybe_auto_pull(self) -> None:
+        """Seçili model kurulu değilse bir kez kendiliğinden indirmeye başla (kullanıcı bir şeye basmasın)."""
+        model = self.rt.settings["model"]
+        if self.auto_pulled or not self.ollama or model in self.models or self.pull_state:
+            return
+        self.auto_pulled = True
+        self.start_pull(model)
+
     async def cmd_pull_model(self, msg):
-        model = msg["model"]
         if self.pull_state:
             raise RuntimeError("Zaten bir indirme sürüyor")
+        self.start_pull(msg["model"])
+        return None
+
+    def start_pull(self, model: str) -> None:
         self.pull_state = {"model": model, "pct": 0, "error": None}
 
         def work():
@@ -214,7 +235,6 @@ class App:
                 self.pull_state = None
 
         asyncio.create_task(bg())
-        return None
 
     async def cmd_launch_chiaki(self, msg):
         path = self.rt.settings.get("chiakiPath")

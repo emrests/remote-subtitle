@@ -18,6 +18,8 @@ Compression=lzma2
 SolidCompression=yes
 WizardStyle=modern
 ArchitecturesInstallIn64BitMode=x64compatible
+; Uygulama açıkken güncellenirse kurulum önce kapatmasını ister (uygulamanın mutex adı)
+AppMutex=remote-subtitle
 
 [Languages]
 Name: "tr"; MessagesFile: "compiler:Languages\Turkish.isl"
@@ -33,15 +35,13 @@ Source: "vendor\OllamaSetup.exe"; DestDir: "{tmp}"; Flags: deleteafterinstall; C
 [Icons]
 Name: "{group}\{#AppName}"; Filename: "{app}\remote-subtitle.exe"
 Name: "{autodesktop}\{#AppName}"; Filename: "{app}\remote-subtitle.exe"; Tasks: desktopicon
-
-[Registry]
-Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; ValueType: string; ValueName: "{#AppName}"; \
-  ValueData: """{app}\remote-subtitle.exe"""; Flags: uninsdeletevalue; Tasks: startup
+; Tüm kullanıcıların Başlangıç klasörü: kurulum başka bir yönetici hesabıyla onaylansa da çalışır, kaldırınca silinir
+Name: "{commonstartup}\{#AppName}"; Filename: "{app}\remote-subtitle.exe"; Tasks: startup
 
 [Run]
 ; 1) Ollama (yerel çeviri motoru) — yoksa sessiz kurulum
 Filename: "{tmp}\OllamaSetup.exe"; Parameters: "/VERYSILENT /NORESTART /SUPPRESSMSGBOXES"; \
-  StatusMsg: "Çeviri motoru (Ollama) kuruluyor..."; Check: not OllamaInstalled; Flags: waituntilterminated
+  StatusMsg: "Çeviri motoru (Ollama) kuruluyor..."; Check: not OllamaInstalled; Flags: waituntilterminated runasoriginaluser
 ; 2) Windows İngilizce OCR dil paketi
 Filename: "powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -Command ""Add-WindowsCapability -Online -Name 'Language.OCR~~~en-US~0.0.1.0'"""; \
   StatusMsg: "İngilizce metin tanıma paketi yükleniyor..."; Flags: runhidden waituntilterminated

@@ -1,4 +1,4 @@
-from rsub.capture import list_sources, snapshot_png, target_rect, to_pixels
+from rsub.capture import list_sources, pick_window, snapshot_jpeg, target_rect, to_pixels
 
 
 def test_to_pixels_scales_with_window():
@@ -28,9 +28,17 @@ def test_list_sources_has_monitors():
     assert "monitor:1" in ids
 
 
-def test_snapshot_png():
-    png, w, h = snapshot_png("monitor:1")
-    assert png[:4] == b"\x89PNG" and w > 0 and h > 0
+def test_snapshot_is_small_jpeg():
+    jpg, w, h = snapshot_jpeg("monitor:1")
+    assert jpg[:2] == bytes([0xFF, 0xD8]) and w > 0 and h > 0 and len(jpg) < 1_000_000
+
+
+def test_pick_window_prefers_exact_then_prefix():
+    wins = [(1, "chiaki-ng releases - Google Chrome"), (2, "chiaki-ng"), (3, "Chiaki-ng | Stream")]
+    assert pick_window(wins, "chiaki-ng") == 2
+    assert pick_window([wins[0], wins[2]], "chiaki-ng") == 3
+    assert pick_window(wins[:1], "chiaki-ng") == 1
+    assert pick_window(wins, "") is None and pick_window(wins, "  ") is None
 
 
 def test_list_sources_hides_shell_windows():

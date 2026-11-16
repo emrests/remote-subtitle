@@ -2,8 +2,10 @@
 import ctypes
 from ctypes import wintypes
 
+import io
+
 import mss
-import mss.tools
+from PIL import Image
 
 user32 = ctypes.windll.user32
 dwmapi = ctypes.windll.dwmapi
@@ -49,6 +51,20 @@ def list_sources() -> list[dict]:
     return mons + [{"id": title, "label": title} for _, title in _windows()]
 
 
+def pick_window(windows: list[tuple[int, str]], source: str) -> int | None:
+    """Önce birebir başlık, sonra başlık başı, en son içinde geçen; her kademede en kısa başlık
+    (ör. "chiaki-ng" penceresi, "chiaki-ng releases - Google Chrome" sekmesinden önce). Boş kaynak eşleşmez."""
+    want = source.strip().lower()
+    if not want:
+        return None
+    by_len = sorted(windows, key=lambda w: len(w[1]))
+    for test in (lambda t: t == want, lambda t: t.startswith(want), lambda t: want in t):
+        for hwnd, title in by_len:
+            if test(title.lower()):
+                return hwnd
+    return None
+
+
 def target_rect(source: str) -> tuple[int, int, int, int] | None:
     """(left, top, width, height) sanal masaüstü pikselinde; bulunamazsa ya da küçültülmüşse None."""
     if source.startswith("monitor:"):
@@ -58,15 +74,13 @@ def target_rect(source: str) -> tuple[int, int, int, int] | None:
                 m = s.monitors[i]
                 return m["left"], m["top"], m["width"], m["height"]
         return None
-    want = source.lower()
-    for hwnd, title in _windows():
-        if want in title.lower() and not user32.IsIconic(hwnd):
-            r, p = wintypes.RECT(), wintypes.POINT(0, 0)
-            user32.GetClientRect(hwnd, ctypes.byref(r))
-            user32.ClientToScreen(hwnd, ctypes.byref(p))
-            if r.right > 0 and r.bottom > 0:
-                return p.x, p.y, r.right, r.bottom
-    return None
+    hwnd = pick_window(_windows(), source)
+    if hwnd is None or user32.IsIconic(hwnd):
+        return None
+    r, p = wintypes.RECT(), wintypes.POINT(0, 0)
+    user32.GetClientRect(hwnd, ctypes.byref(r))
+    user32.ClientToScreen(hwnd, ctypes.byref(p))
+    return (p.x, p.y, r.right, r.bottom) if r.right > 0 and r.bottom > 0 else None
 
 
 def to_pixels(region: list[float], rect: tuple[int, int, int, int]) -> dict:
@@ -80,10 +94,15 @@ def grab(sct, box: dict):
     return sct.grab(box)
 
 
-def snapshot_png(source: str) -> tuple[bytes, int, int] | None:
+def snapshot_jpeg(source: str) -> tuple[bytes, int, int] | None:
+    """Bölge seçimi için anlık görüntü; JPEG, PNG'den ~10 kat küçük."""
     rect = target_rect(source)
     if not rect:
         return None
     with mss.MSS() as s:
         shot = s.grab(to_pixels([0, 0, 1, 1], rect))
-    return mss.tools.to_png(shot.rgb, shot.size), shot.width, shot.height
+    img = Image.frombytes("RGB", shot.size, shot.rgb)
+    img.thumbnail((1920, 1920))  # oranlar korunur; bölge oranlı saklandığı için çözünürlük önemsiz
+    buf = io.BytesIO()
+    img.save(buf, "JPEG", quality=82)
+    return buf.getvalue(), shot.width, shot.height

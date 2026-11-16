@@ -1,5 +1,5 @@
 """Ayarlar ve oyun profilleri: %APPDATA%\\remote-subtitle altında JSON."""
-import base64
+import hashlib
 import copy
 import json
 import os
@@ -20,8 +20,9 @@ def default_profile(name: str) -> dict:
 
 
 def _path(name: str) -> Path:
-    # Dosya adı = adın base64'ü; böylece "Spider-Man: 2/b" gibi adlar da kaydedilebilir.
-    return home() / "profiles" / (base64.urlsafe_b64encode(name.encode()).decode() + ".json")
+    # Dosya adı = adın SHA-1 özeti (küçük harf hex): yasak karakterli, çok uzun ya da yalnızca
+    # büyük/küçük harfi farklı adlar da NTFS'te çakışmadan saklanır. Gerçek ad dosyanın içinde.
+    return home() / "profiles" / (hashlib.sha1(name.encode()).hexdigest() + ".json")
 
 
 def _read(path: Path):
@@ -51,6 +52,10 @@ def _merge(default: dict, data) -> dict:
 
 def load_settings() -> dict:
     return _merge(DEFAULT_SETTINGS, _read(home() / "settings.json"))
+
+
+def settings_exist() -> bool:
+    return (home() / "settings.json").exists()
 
 
 def save_settings(s: dict) -> None:

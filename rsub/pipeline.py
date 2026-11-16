@@ -28,21 +28,22 @@ def stable(state: dict, text: str) -> str | None:
     return text
 
 
-def build_lines(text: str, profile: dict, tr: Callable[[str], str]) -> tuple[list[dict], bool]:
-    lines, changed = [], False
+def build_lines(text: str, profile: dict, tr: Callable[[str], str]) -> tuple[list[dict], list[str]]:
+    """Satırları oluşturur; profili değiştirmez, yeni görülen konuşmacıları döndürür (çağıran ekler)."""
+    lines, new = [], []
     for speaker, en in split_speakers(text):
         color = None
         if speaker:
-            if speaker not in profile["speakers"]:
-                profile["speakers"][speaker] = {"color": None, "voice": None}
-                changed = True
-            color = profile["speakers"][speaker]["color"] or profile["style"]["nameColor"]
+            known = profile["speakers"].get(speaker)
+            if known is None and speaker not in new:
+                new.append(speaker)
+            color = (known or {}).get("color") or profile["style"]["nameColor"]
         try:
             out = tr(en)
         except Exception:  # Ollama kapalı / model yok: satırı düşürme, İngilizcesini göster
             out = en
         lines.append({"speaker": speaker, "color": color, "en": en, "tr": out})
-    return lines, changed
+    return lines, new
 
 
 @dataclass
@@ -100,11 +101,15 @@ async def _frame(rt: Runtime, sct, state: dict, tr, t0: float) -> None:
     line = stable(state, text)
     if line is None:
         return
-    lines, changed = await asyncio.to_thread(build_lines, line, profile, tr)
+    lines, new = await asyncio.to_thread(build_lines, line, profile, tr)
     t3 = time.perf_counter()
     rt.last_lines = lines
     rt.emit({"type": "lines", "lines": lines})
-    if changed and rt.profile is profile:  # panel bu arada profili değiştirdiyse eskisini yazma
+    # Yeni konuşmacılar döngü iş parçacığında eklenir (panel komutlarıyla yarışmasın);
+    # panel bu arada profili değiştirdiyse eski profile yazılmaz.
+    if new and rt.profile is profile:
+        for name in new:
+            profile["speakers"].setdefault(name, {"color": None, "voice": None})
         store.save_profile(profile)
     if line:
         rt.timings.append(round(1000 * (t3 - t0)))

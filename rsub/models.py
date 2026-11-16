@@ -1,6 +1,8 @@
 """Çeviri modeli kataloğu, VRAM'e göre öneri ve Ollama üzerinden indirme."""
 import json
+import os
 import subprocess
+from pathlib import Path
 import urllib.request
 from typing import Callable
 
@@ -53,6 +55,17 @@ def installed() -> set[str]:
         return {m["name"] for m in _get("/api/tags", 3)["models"]}
     except Exception:
         return set()
+
+
+def start_ollama() -> bool:
+    """Ollama kurulu ama çalışmıyorsa arka planda başlatır (kullanıcı ayrıca açmak zorunda kalmasın)."""
+    for base in (os.environ.get("LOCALAPPDATA", ""), os.environ.get("ProgramFiles", "")):
+        for exe in (Path(base) / "Programs" / "Ollama" / "ollama.exe", Path(base) / "Ollama" / "ollama.exe"):
+            if base and exe.is_file():
+                subprocess.Popen([str(exe), "serve"], creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+                                 stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                return True
+    return False
 
 
 def pull(model: str, on_pct: Callable[[int], None]) -> None:

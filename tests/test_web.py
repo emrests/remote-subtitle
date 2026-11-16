@@ -140,3 +140,29 @@ def test_static_rel_rejects_without_touching_disk():
     assert web.static_rel("/../rsub/store.py") is None
     assert web.static_rel("/") == "panel.html"
     assert web.static_rel("/display.html?bg=x") == "display.html"
+
+
+def test_first_run_picks_recommended_model(monkeypatch):
+    monkeypatch.setattr(web, "gpu_vram_mb", lambda: 6144)
+    a = web.App(web.WEB_DIR, None)
+    assert a.rt.settings["model"] == "translategemma:4b"
+
+
+def test_auto_pull_once_when_model_missing(monkeypatch):
+    a = web.App(web.WEB_DIR, None)
+    pulls = []
+    monkeypatch.setattr(a, "start_pull", pulls.append)
+    a.ollama, a.models = True, set()
+    a.maybe_auto_pull(); a.maybe_auto_pull()
+    assert pulls == [a.rt.settings["model"]]
+
+
+def test_no_auto_pull_when_installed_or_ollama_down(monkeypatch):
+    a = web.App(web.WEB_DIR, None)
+    pulls = []
+    monkeypatch.setattr(a, "start_pull", pulls.append)
+    a.ollama, a.models = False, set()
+    a.maybe_auto_pull()
+    a.ollama, a.models = True, {a.rt.settings["model"]}
+    a.maybe_auto_pull()
+    assert pulls == []

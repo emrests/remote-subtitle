@@ -10,14 +10,15 @@ P = {"name": "T", "glossary": {}, "speakers": {"Arthur": {"color": "#ff0000", "v
 
 def test_build_lines_colors_and_new_speaker():
     p = copy.deepcopy(P)
-    lines, changed = build_lines("Arthur: Hi. Sadie: Bye.", p, lambda s: s.upper())
+    lines, new = build_lines("Arthur: Hi. Sadie: Bye.", p, lambda s: s.upper())
     assert lines == [{"speaker": "Arthur", "color": "#ff0000", "en": "Hi.", "tr": "HI."},
                      {"speaker": "Sadie", "color": "#ffd166", "en": "Bye.", "tr": "BYE."}]
-    assert changed is True and p["speakers"]["Sadie"] == {"color": None, "voice": None}
+    assert new == ["Sadie"]
+    assert "Sadie" not in p["speakers"]  # profil iş parçacığında değiştirilmez; döngü ekler
 
 
 def test_build_lines_known_speakers_unchanged():
-    assert build_lines("Arthur: Hi.", copy.deepcopy(P), str)[1] is False
+    assert build_lines("Arthur: Hi.", copy.deepcopy(P), str)[1] == []
 
 
 def test_build_lines_no_speaker_has_no_color():
@@ -25,7 +26,7 @@ def test_build_lines_no_speaker_has_no_color():
 
 
 def test_build_lines_empty_clears():
-    assert build_lines("", copy.deepcopy(P), str) == ([], False)
+    assert build_lines("", copy.deepcopy(P), str) == ([], [])
 
 
 def test_translate_failure_falls_back_to_english():
@@ -105,3 +106,20 @@ def test_lost_window_clears_subtitle(monkeypatch):
     except TimeoutError:
         pass
     assert [m["lines"] for m in sent][-1] == [] and rt.last_lines == []
+
+
+def test_run_adds_new_speakers_on_loop(monkeypatch):
+    monkeypatch.setattr(pipeline, "target_rect", lambda src: (0, 0, 10, 10))
+    monkeypatch.setattr(pipeline, "grab", lambda sct, box: None)
+    async def fake_ocr(engine, shot):
+        return "Sadie: Hi."
+    monkeypatch.setattr(pipeline, "ocr", fake_ocr)
+    monkeypatch.setattr(pipeline, "translate", lambda *a: "Selam.")
+    saved = []
+    monkeypatch.setattr(pipeline.store, "save_profile", saved.append)
+    rt = Runtime(settings={"model": "m"}, profile=copy.deepcopy(P), emit=lambda m: None)
+    try:
+        asyncio.run(asyncio.wait_for(run(rt, interval=0.01), 0.4))
+    except TimeoutError:
+        pass
+    assert rt.profile["speakers"]["Sadie"] == {"color": None, "voice": None} and saved

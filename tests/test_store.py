@@ -69,3 +69,21 @@ def test_failed_write_keeps_old_file(monkeypatch):
     except OSError:
         pass
     assert store.load_profile("A")["glossary"] == {} and store.list_profiles() == ["A"]
+
+
+def test_case_only_different_names_do_not_collide():
+    store.save_profile(store.default_profile("aaa"))
+    store.save_profile(store.default_profile("aaG"))
+    assert store.list_profiles() == ["aaG", "aaa"]
+
+
+def test_very_long_profile_name():
+    name = "x" * 300
+    store.save_profile(store.default_profile(name))
+    assert store.list_profiles() == [name]
+
+
+def test_first_run_flag():
+    assert store.settings_exist() is False
+    store.save_settings(store.load_settings())
+    assert store.settings_exist() is True
