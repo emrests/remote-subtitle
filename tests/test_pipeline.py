@@ -56,7 +56,7 @@ def test_run_survives_missing_window(monkeypatch):
 def test_run_emits_translated_lines(monkeypatch):
     monkeypatch.setattr(pipeline, "target_rect", lambda src: (0, 0, 10, 10))
     monkeypatch.setattr(pipeline, "grab", lambda sct, box: None)
-    async def fake_ocr(engine, shot, known=None):
+    async def fake_ocr(engine, shot, known=None, by_color=False):
         return "Arthur: Hi."
     monkeypatch.setattr(pipeline, "ocr", fake_ocr)
     monkeypatch.setattr(pipeline, "translate", lambda *a, **k: "Selam.")
@@ -78,7 +78,7 @@ def test_run_survives_unexpected_error(monkeypatch):
             raise RuntimeError("boom")
     monkeypatch.setattr(pipeline, "target_rect", lambda src: (0, 0, 10, 10))
     monkeypatch.setattr(pipeline, "grab", flaky)
-    async def fake_ocr(engine, shot, known=None):
+    async def fake_ocr(engine, shot, known=None, by_color=False):
         return "Hi."
     monkeypatch.setattr(pipeline, "ocr", fake_ocr)
     monkeypatch.setattr(pipeline, "translate", lambda *a, **k: "Selam.")
@@ -96,7 +96,7 @@ def test_lost_window_clears_subtitle(monkeypatch):
     rects = iter([(0, 0, 10, 10)] * 3)
     monkeypatch.setattr(pipeline, "target_rect", lambda src: next(rects, None))
     monkeypatch.setattr(pipeline, "grab", lambda sct, box: None)
-    async def fake_ocr(engine, shot, known=None):
+    async def fake_ocr(engine, shot, known=None, by_color=False):
         return "Hi."
     monkeypatch.setattr(pipeline, "ocr", fake_ocr)
     monkeypatch.setattr(pipeline, "translate", lambda *a, **k: "Selam.")
@@ -112,7 +112,7 @@ def test_lost_window_clears_subtitle(monkeypatch):
 def test_run_adds_new_speakers_on_loop(monkeypatch):
     monkeypatch.setattr(pipeline, "target_rect", lambda src: (0, 0, 10, 10))
     monkeypatch.setattr(pipeline, "grab", lambda sct, box: None)
-    async def fake_ocr(engine, shot, known=None):
+    async def fake_ocr(engine, shot, known=None, by_color=False):
         return "Sadie: Hi."
     monkeypatch.setattr(pipeline, "ocr", fake_ocr)
     monkeypatch.setattr(pipeline, "translate", lambda *a, **k: "Selam.")
@@ -130,7 +130,7 @@ def _fake_frame(monkeypatch, text="Hi.", translated="Selam."):
     calls = {"ocr": 0, "translate": 0}
     monkeypatch.setattr(pipeline, "target_rect", lambda src: (0, 0, 10, 10))
     monkeypatch.setattr(pipeline, "grab", lambda sct, box: None)
-    async def fake_ocr(engine, shot, known=None):
+    async def fake_ocr(engine, shot, known=None, by_color=False):
         calls["ocr"] += 1
         from rsub.ocr import OcrText
         out = OcrText(text)
@@ -260,7 +260,7 @@ def _seq_frame(monkeypatch, seq, translated="Selam."):
     monkeypatch.setattr(pipeline, "target_rect", lambda src: (0, 0, 1000, 200))
     monkeypatch.setattr(pipeline, "grab", lambda sct, box: None)
 
-    async def fake_ocr(engine, shot, known=None):
+    async def fake_ocr(engine, shot, known=None, by_color=False):
         text, box = next(it, last[0])
         out = OcrText(text)
         out.box, out.lines = (box, 1) if text else (None, 0)
@@ -403,3 +403,20 @@ def test_real_word_partial_not_translated(monkeypatch):
     rt = Runtime(settings={"model": "m"}, profile=copy.deepcopy(P), emit=sent.append)
     _run_briefly(rt, 0.5)
     assert [m["lines"][0]["en"] for m in sent if m["lines"]] == ["I think.."]
+
+
+def test_profile_speaker_color_reaches_ocr(monkeypatch):
+    monkeypatch.setattr(pipeline, "target_rect", lambda src: (0, 0, 10, 10))
+    monkeypatch.setattr(pipeline, "grab", lambda sct, box: None)
+    seen = []
+    async def fake_ocr(engine, shot, known=None, by_color=False):
+        seen.append(by_color)
+        return ""
+    monkeypatch.setattr(pipeline, "ocr", fake_ocr)
+    for flag in (True, False):
+        rt = Runtime(settings={"model": "m"}, profile={**copy.deepcopy(P), "speakerColor": flag}, emit=lambda m: None)
+        try:
+            asyncio.run(asyncio.wait_for(run(rt, interval=0.01), 0.1))
+        except TimeoutError:
+            pass
+        assert seen and seen[-1] is flag

@@ -16,7 +16,7 @@ def home() -> Path:
 
 def default_profile(name: str) -> dict:
     return {"name": name, "source": "monitor:1", "region": [0.0, 0.7, 1.0, 0.3],
-            "style": dict(DEFAULT_STYLE), "glossary": {}, "speakers": {}}
+            "style": dict(DEFAULT_STYLE), "glossary": {}, "speakers": {}, "speakerColor": False}
 
 
 def _path(name: str) -> Path:

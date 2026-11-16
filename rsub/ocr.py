@@ -37,12 +37,52 @@ class OcrText(str):
     lines: int = 0
 
 
-async def ocr(engine, shot) -> OcrText:
+NAME_CONTRAST = 0.25  # isim ile replik parlaklığı arasındaki en az oran farkı (ölçüm: RDR2 isim 87, replik 167)
+
+
+def mark_speaker(words: list[str], levels: list[float]) -> list[str]:
+    """Satır başındaki 1-3 kelime cümlenin kalanından belirgin farklı renkteyse (RDR2: gri isim, beyaz replik)
+    sonuncusuna ':' ekler; böylece "Dutch Arthur! Any luck?" → "Dutch: Arthur! ...". Sıradan altyazı değişmez."""
+    if len(words) < 2 or words[0].endswith(":"):
+        return words
+    for n in (1, 2, 3):
+        if n >= len(words):
+            break
+        rest = sorted(levels[n:])[len(levels[n:]) // 2]
+        head = levels[:n]
+        if not rest or not all(w[:1].isupper() for w in words[:n]):
+            break
+        if all(abs(h - rest) / rest > NAME_CONTRAST for h in head):
+            if abs(levels[n] - rest) / rest > NAME_CONTRAST:
+                continue  # bir sonraki kelime de isim rengi: ad daha uzun
+            return words[:n - 1] + [words[n - 1] + ":"] + words[n:]
+        break
+    return words
+
+
+def _levels(shot, words) -> list[float]:
+    """Kelime başına yazı parlaklığı: kutudaki piksellerin 95. yüzdeliği (yazı, zeminden parlak)."""
+    import numpy as np
+    a = np.frombuffer(shot.bgra, np.uint8).reshape(shot.height, shot.width, 4)[..., :3].mean(axis=2)
+    out = []
+    for wd in words:
+        r = wd.bounding_rect
+        p = a[max(0, int(r.y)):int(r.y + r.height), max(0, int(r.x)):int(r.x + r.width)]
+        out.append(float(np.percentile(p, 95)) if p.size else 0.0)
+    return out
+
+
+async def ocr(engine, shot, by_color: bool = False) -> OcrText:
     w = DataWriter()
     w.write_bytes(shot.bgra)
     bmp = SoftwareBitmap.create_copy_from_buffer(w.detach_buffer(), BitmapPixelFormat.BGRA8, shot.width, shot.height)
     result = await engine.recognize_async(bmp)
-    out = OcrText(" ".join(line.text for line in result.lines).strip())
+    if by_color:
+        texts = [" ".join(mark_speaker([wd.text for wd in line.words], _levels(shot, line.words)))
+                 for line in result.lines]
+    else:
+        texts = [line.text for line in result.lines]
+    out = OcrText(" ".join(texts).strip())
     out.lines = sum(1 for line in result.lines if line.text.strip())
     rects = [wd.bounding_rect for line in result.lines for wd in line.words]
     if rects:
@@ -70,11 +110,11 @@ def bright_text(shot):
     return _Frame(g.point(lambda v: 0 if v > BRIGHT_THRESHOLD else 255))
 
 
-async def read_best(engine, shot, known: set[str]) -> "OcrText":
+async def read_best(engine, shot, known: set[str], by_color: bool = False) -> "OcrText":
     """Önce normal okuma; zayıf ya da kısaysa (puan < 0,9 veya 3 kelimeden az) parlak-yazı yöntemiyle de oku,
     iyisini al. Normal altyazıda ikinci okuma çalışmaz."""
     from .cleanup import clean
-    first = await ocr(engine, shot)
+    first = await ocr(engine, shot, by_color)
     s1 = clean(first, known)[1] if first else 0.0
     w1 = len(str(first).split())
     # tek kelimelik çöp ("ffi" → düzeltmeyle "fri") puanı kandırır: kısa okumada da ikinci yöntemi dene

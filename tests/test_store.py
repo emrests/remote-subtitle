@@ -87,3 +87,10 @@ def test_first_run_flag():
     assert store.settings_exist() is False
     store.save_settings(store.load_settings())
     assert store.settings_exist() is True
+
+
+def test_speaker_color_option_defaults_off_and_persists(tmp_path, monkeypatch):
+    monkeypatch.setenv("RSUB_HOME", str(tmp_path))
+    assert store.default_profile("A")["speakerColor"] is False
+    p = store.default_profile("A"); p["speakerColor"] = True; store.save_profile(p)
+    assert store.load_profile("A")["speakerColor"] is True

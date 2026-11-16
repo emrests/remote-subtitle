@@ -380,7 +380,9 @@ $("btn-term-add").onclick = () => {
 };
 
 // ---------- karakterler ----------
+$("speaker-color").onchange = (e) => { S.profile.speakerColor = e.target.checked; saveProfileSoon(); };
 function renderChars() {
+  $("speaker-color").checked = !!S.profile.speakerColor;
   const names = Object.keys(S.profile.speakers).sort((a, b) => a.localeCompare(b, "tr"));
   $("chars-empty").hidden = names.length > 0;
   $("chars").hidden = names.length === 0;

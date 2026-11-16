@@ -49,7 +49,7 @@ def test_short_garbage_triggers_second_pass(monkeypatch):
         return t
     results = iter([mk("ffi", (289, 59, 34, 32)), mk("Get to the cliff edge", (140, 100, 640, 60))])
 
-    async def fake(engine, shot):
+    async def fake(engine, shot, by_color=False):
         return next(results)
     monkeypatch.setattr(ocr_mod, "ocr", fake)
     out = asyncio.run(read_best(None, Shot(objective_on_snow()), set()))
@@ -61,7 +61,7 @@ def test_normal_subtitle_single_pass(monkeypatch):
     from rsub.ocr import OcrText
     calls = []
 
-    async def fake(engine, shot):
+    async def fake(engine, shot, by_color=False):
         calls.append(1)
         t = OcrText("We got this. We're safe.")
         t.box, t.lines = (1, 1, 10, 10), 1
