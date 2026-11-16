@@ -180,3 +180,16 @@ def test_paused_still_reports_window(monkeypatch):
     rt = Runtime(settings={"model": "m", "running": False}, profile=copy.deepcopy(P), emit=lambda m: None)
     _run_briefly(rt)
     assert rt.status["window"] is True
+
+
+def test_on_frame_reports_rect_and_none_when_paused(monkeypatch):
+    _fake_frame(monkeypatch)
+    seen = []
+    rt = Runtime(settings={"model": "m"}, profile=copy.deepcopy(P), emit=lambda m: None)
+    rt.on_frame = seen.append
+    _run_briefly(rt, 0.2)
+    assert (0, 0, 10, 10) in seen
+    seen.clear()
+    rt.settings["running"] = False
+    _run_briefly(rt, 0.2)
+    assert seen and set(seen) == {None}

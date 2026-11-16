@@ -205,10 +205,25 @@ async function loadSources() {
 $("btn-sources").onclick = loadSources;
 $("source").onchange = (e) => { S.profile.source = e.target.value; S.shot = null; renderRegion(); saveProfileSoon(); };
 
-$("btn-snap").onclick = () => act(async () => {
+async function snap() {
   const d = await send("snapshot", { source: S.profile.source });
   S.shot = d.image;
   renderRegion(); renderPreview();
+}
+$("btn-snap").onclick = () => act(snap);
+
+// Canlı: kaynak sekmesi açıkken ve bölge çizilmiyorken saniyede bir yenile
+let liveBusy = false, drawing = false;
+setInterval(async () => {
+  if (!$("live").checked || liveBusy || drawing || $("tab-source").hidden || !ws) return;
+  liveBusy = true;
+  try { await snap(); } catch (e) { /* kaynak geçici yoksa sessizce bekle */ }
+  liveBusy = false;
+}, 1000);
+
+$("overlay").onchange = (e) => act(async () => {
+  S.settings = await send("save_settings", { settings: { overlay: e.target.checked } });
+  toast(e.target.checked ? "Çeviri kaynağın üstünde gösterilecek" : "Kaynağın üstündeki çeviri kapatıldı");
 });
 
 function renderRegion() {
@@ -232,6 +247,7 @@ function renderRegion() {
   };
   wrap.addEventListener("pointerdown", (e) => {
     if (!S.shot) return;
+    drawing = true;
     start = pt(e);
     wrap.setPointerCapture(e.pointerId);
   });
@@ -244,6 +260,7 @@ function renderRegion() {
   wrap.addEventListener("pointerup", () => {
     if (!start) return;
     start = null;
+    drawing = false;
     const [, , w, h] = S.profile.region;
     if (w < 0.02 || h < 0.02) return toast("Bölge çok küçük, daha geniş bir alan çizin");
     saveProfileSoon();
@@ -398,6 +415,7 @@ function renderConn() {
   $("btn-copy-url").onclick = () => navigator.clipboard.writeText(url).then(() => toast("Adres kopyalandı"));
   $("btn-open-display").onclick = () => window.open(`/display.html`, "_blank");
   $("chiaki-path").value = S.settings.chiakiPath || "";
+  $("overlay").checked = S.settings.overlay !== false;
 }
 $("chiaki-path").onchange = (e) => act(async () => { S.settings = await send("save_settings", { settings: { chiakiPath: e.target.value.trim() } }); });
 $("btn-chiaki").onclick = () => act(async () => { await send("launch_chiaki"); toast("chiaki-ng başlatıldı"); });

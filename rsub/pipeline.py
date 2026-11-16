@@ -56,6 +56,7 @@ class Runtime:
     timings: deque = field(default_factory=lambda: deque(maxlen=10))
     last_lines: list = field(default_factory=list)
     model_ready: bool = True  # App, Ollama'da model kurulu mu diye günceller
+    on_frame: Callable | None = None  # her karede kaynak dikdörtgeniyle (ya da None) çağrılır: katman konumu
     status: dict = field(default_factory=lambda: {"window": False, "last": None, "avgMs": None,
                                                   "slow": False, "error": None, "running": True})
 
@@ -99,6 +100,8 @@ async def _frame(rt: Runtime, sct, state: dict, tr, t0: float) -> None:
     if not rt.status["running"]:  # kullanıcı durdurdu: okuma yapma, ama pencere durumunu göster
         rt.status["window"] = target_rect(rt.profile["source"]) is not None
         _clear(rt, state)
+        if rt.on_frame:
+            rt.on_frame(None)
         await asyncio.sleep(0.3)
         return
     profile = rt.profile  # panel her an değiştirebilir; her karede yeniden okunur
@@ -106,6 +109,8 @@ async def _frame(rt: Runtime, sct, state: dict, tr, t0: float) -> None:
     rt.status["window"] = rect is not None
     if rect is None:  # pencere kapandı/küçüldü
         _clear(rt, state)
+        if rt.on_frame:
+            rt.on_frame(None)
         await asyncio.sleep(1)
         return
     shot = grab(sct, to_pixels(profile["region"], rect))
@@ -114,11 +119,15 @@ async def _frame(rt: Runtime, sct, state: dict, tr, t0: float) -> None:
     t2 = time.perf_counter()
     line = stable(state, text)
     if line is None:
+        if rt.on_frame:
+            rt.on_frame(rect)
         return
     lines, new = await asyncio.to_thread(build_lines, line, profile, tr)
     t3 = time.perf_counter()
     rt.last_lines = lines
     rt.emit({"type": "lines", "lines": lines})
+    if rt.on_frame:
+        rt.on_frame(rect)
     # Yeni konuşmacılar döngü iş parçacığında eklenir (panel komutlarıyla yarışmasın);
     # panel bu arada profili değiştirdiyse eski profile yazılmaz.
     if new and rt.profile is profile:

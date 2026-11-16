@@ -179,3 +179,47 @@ async def test_set_running_persists(app, port):
         assert r["ok"] and app.rt.settings["running"] is True
     from rsub import store
     assert store.load_settings()["running"] is True
+
+
+class FakeOverlay:
+    def __init__(self):
+        self.shown, self.hidden = [], 0
+
+    def show(self, box, img):
+        self.shown.append((box, img.size))
+
+    def hide(self):
+        self.hidden += 1
+
+
+def _overlay_app():
+    a = web.App(web.WEB_DIR, None)
+    a.overlay = FakeOverlay()
+    a.rt.settings["running"] = True
+    a.rt.profile["region"] = [0.25, 0.75, 0.5, 0.1]
+    a.rt.last_lines = [{"speaker": None, "color": None, "en": "Hi.", "tr": "Selam."}]
+    return a
+
+
+def test_overlay_covers_region_of_window():
+    a = _overlay_app()
+    a.sync_overlay((100, 50, 1920, 1080))
+    assert a.overlay.shown == [({"left": 580, "top": 860, "width": 960, "height": 108}, (960, 108))]
+    a.sync_overlay((100, 50, 1920, 1080))  # değişiklik yoksa yeniden çizme
+    assert len(a.overlay.shown) == 1
+
+
+def test_overlay_hidden_when_off_paused_or_no_window():
+    a = _overlay_app()
+    a.sync_overlay(None)
+    a.rt.settings["overlay"] = False
+    a.sync_overlay((0, 0, 1920, 1080))
+    assert a.overlay.shown == []
+
+
+def test_overlay_hides_after_being_shown():
+    a = _overlay_app()
+    a.sync_overlay((0, 0, 1920, 1080))
+    a.rt.settings["running"] = False
+    a.sync_overlay(None)
+    assert len(a.overlay.shown) == 1 and a.overlay.hidden == 1

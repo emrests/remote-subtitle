@@ -16,7 +16,7 @@ from websockets.asyncio.server import serve
 from websockets.datastructures import Headers
 from websockets.http11 import Response
 
-from . import capture, store
+from . import capture, layout, store
 from .models import gpu_vram_mb, installed, model_infos, ollama_up, pull, recommend, start_ollama
 from .ocr import make_ocr, ocr_language
 from .pipeline import Runtime, run
@@ -68,6 +68,9 @@ class App:
             settings["model"] = recommend(self.vram)
             store.save_settings(settings)
         self.rt = Runtime(settings, store.load_profile(settings["profile"]), self._emit)
+        self.rt.on_frame = self.sync_overlay
+        self.overlay = None  # serve_app gerçek katmanı bağlar; testler sahtesini
+        self._overlay_key = None
         self.clients: set = set()
         self.port = PORT
         self.auto_pulled = False
@@ -85,6 +88,28 @@ class App:
         self.broadcast(msg)
         if msg["type"] == "lines" and any(l["speaker"] for l in msg["lines"]):
             self.broadcast({"type": "profile", "profile": self.rt.profile})  # yeni karakterler panelde görünsün
+
+    def sync_overlay(self, rect) -> None:
+        """Çeviriyi kaynak penceredeki altyazı bölgesinin tam üstüne koyar (İngilizceyi kapatır)."""
+        if self.overlay is None:
+            return
+        s, lines = self.rt.settings, self.rt.last_lines
+        if rect is None or not s.get("running") or not s.get("overlay", True) or not any(l["tr"] for l in lines):
+            if self._overlay_key is not None:  # yalnızca gösteriliyorsa gizle (her karede komut gönderme)
+                self.overlay.hide()
+                self._overlay_key = None
+            return
+        box = capture.to_pixels(self.rt.profile["region"], rect)
+        style = self.rt.profile["style"]
+        key = (tuple(box.values()), json.dumps(lines, sort_keys=True), json.dumps(style, sort_keys=True))
+        if key == self._overlay_key:
+            return
+        img = layout.render(lines, style, box["width"], box["height"], scale=rect[3] / 1080)
+        if img is None:
+            self.overlay.hide()
+        else:
+            self.overlay.show(box, img)
+        self._overlay_key = key
 
     def status(self) -> dict:
         model = self.rt.settings["model"]
@@ -263,6 +288,8 @@ async def serve_app(port: int = PORT, web_dir: Path = WEB_DIR, on_show=None, rea
     app = App(web_dir, on_show)
     app.ocr_lang = ocr_language()
     app.rt.engine = make_ocr()
+    from .overlay import Overlay
+    app.overlay = Overlay()
     if app.rt.engine is None:
         app.rt.status["error"] = "Windows'ta Latin alfabeli bir OCR dili bulunamadı (Ayarlar > Dil'den İngilizce ya da Türkçe ekleyin)." 
     async with serve(app.handler, "0.0.0.0", port, process_request=app.process_request) as server:

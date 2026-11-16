@@ -149,6 +149,8 @@ input[type="range"] { accent-color: var(--accent); width: 100%; }
 }
 .source-row { display: flex; gap: 10px; align-items: center; }
 .source-row select { flex: 1; }
+.check { display: inline-flex; align-items: center; gap: 8px; cursor: pointer; white-space: nowrap; }
+.check input { accent-color: var(--accent); width: 16px; height: 16px; }
 
 /* ---------- tablolar / listeler ---------- */
 table { width: 100%; border-collapse: collapse; }

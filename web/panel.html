@@ -53,6 +53,7 @@
           <select id="source" aria-label="Kaynak"></select>
           <button class="btn" id="btn-sources">Listeyi yenile</button>
           <button class="btn primary" id="btn-snap">Görüntü al</button>
+          <label class="check"><input type="checkbox" id="live"> Canlı</label>
         </div>
         <div class="shot-wrap" id="shot">
           <div class="shot-empty" id="shot-empty">Kaynaktan bir görüntü alın. Evde chiaki-ng, işte ikinci ekrandaki YouTube penceresini seçebilirsiniz.</div>
@@ -60,6 +61,8 @@
           <div class="region" id="region" hidden><span>Altyazı bölgesi</span></div>
         </div>
         <p class="muted" id="region-info"></p>
+        <label class="check"><input type="checkbox" id="overlay">
+          Çeviriyi bu bilgisayarda kaynağın üstünde göster (orijinal İngilizce altyazının üstünü kapatır)</label>
       </div>
     </section>
 
