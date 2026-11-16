@@ -46,7 +46,7 @@ p { margin: 0; }
 }
 .profile-switch { display: flex; align-items: center; gap: 8px; }
 .profile-switch select { min-width: 220px; font-weight: 600; }
-.chips { margin-left: auto; display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
+.chips { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
 .chip {
   display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 999px;
   background: var(--ink-2); color: var(--muted); font-size: 12px; white-space: nowrap; cursor: default;
@@ -54,6 +54,15 @@ p { margin: 0; }
 .chip i { width: 7px; height: 7px; border-radius: 50%; background: var(--bad); }
 .chip.on i { background: var(--ok); }
 .chip.on { color: var(--text); }
+
+.btn.run { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); font-weight: 600; padding: 8px 18px; }
+.btn.run:hover { filter: brightness(1.06); }
+.btn.run[aria-pressed="true"] { background: var(--ink-2); color: var(--text); border-color: var(--line); }
+.btn.run[aria-pressed="true"]::before {
+  content: ""; display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--ok);
+  margin-right: 8px; vertical-align: 1px;
+}
+.chips { margin-left: auto; }
 
 /* ---------- gövde ---------- */
 .body { display: grid; grid-template-columns: 210px 1fr; min-height: 0; }
@@ -185,6 +194,7 @@ td.actions { width: 1%; white-space: nowrap; }
 .footer .times strong { color: var(--text); font-weight: 500; }
 .footer .alert { color: var(--warn); }
 .footer .err { color: var(--bad); }
+.footer .info { color: var(--muted); }
 
 .toast {
   position: fixed; left: 50%; bottom: 64px; transform: translateX(-50%); background: var(--ink-2); border: 1px solid var(--line);

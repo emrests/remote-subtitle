@@ -98,6 +98,9 @@ class App:
                 if not self.ollama and not self.ollama_started:
                     self.ollama_started = await asyncio.to_thread(start_ollama)
                 self.models = await asyncio.to_thread(installed) if self.ollama else set()
+                self.rt.model_ready = self.rt.settings["model"] in self.models
+                if self.rt.model_ready and self.rt.status["error"] and "hazır değil" in self.rt.status["error"]:
+                    self.rt.status["error"] = None
                 self.maybe_auto_pull()
                 self.broadcast({"type": "status", "status": self.status()})
             except Exception as e:  # durum döngüsü de sunucuyu öldürmesin
@@ -235,6 +238,13 @@ class App:
                 self.pull_state = None
 
         asyncio.create_task(bg())
+
+    async def cmd_set_running(self, msg):
+        self.rt.settings["running"] = bool(msg["running"])
+        store.save_settings(self.rt.settings)
+        self.rt.status["running"] = self.rt.settings["running"]
+        self.broadcast({"type": "status", "status": self.status()})
+        return self.rt.settings["running"]
 
     async def cmd_launch_chiaki(self, msg):
         path = self.rt.settings.get("chiakiPath")

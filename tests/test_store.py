@@ -2,7 +2,7 @@ from rsub import store
 
 
 def test_defaults_when_empty():
-    assert store.load_settings() == {"profile": "Varsayılan", "model": "translategemma:12b", "chiakiPath": ""}
+    assert store.load_settings() == {"profile": "Varsayılan", "model": "translategemma:12b", "chiakiPath": "", "running": False}
     assert store.load_profile("Varsayılan")["region"] == [0.0, 0.7, 1.0, 0.3]
 
 

@@ -166,3 +166,16 @@ def test_no_auto_pull_when_installed_or_ollama_down(monkeypatch):
     a.ollama, a.models = True, {a.rt.settings["model"]}
     a.maybe_auto_pull()
     assert pulls == []
+
+
+def test_new_install_starts_paused():
+    assert web.App(web.WEB_DIR, None).rt.settings["running"] is False
+
+
+@with_app
+async def test_set_running_persists(app, port):
+    async with connect(f"ws://127.0.0.1:{port}") as ws:
+        r = await _cmd(ws, cmd="set_running", running=True)
+        assert r["ok"] and app.rt.settings["running"] is True
+    from rsub import store
+    assert store.load_settings()["running"] is True

@@ -55,14 +55,18 @@ class Runtime:
     cache: dict = field(default_factory=dict)
     timings: deque = field(default_factory=lambda: deque(maxlen=10))
     last_lines: list = field(default_factory=list)
+    model_ready: bool = True  # App, Ollama'da model kurulu mu diye günceller
     status: dict = field(default_factory=lambda: {"window": False, "last": None, "avgMs": None,
-                                                  "slow": False, "error": None})
+                                                  "slow": False, "error": None, "running": True})
 
 
 async def run(rt: Runtime, interval: float = 0.15) -> None:
     state = {"prev": None, "sent": ""}
 
     def tr(en: str) -> str:
+        if not rt.model_ready:  # model inerken Ollama'ya istek gönderme (404 döner); İngilizce göster
+            rt.status["error"] = "Çeviri modeli hazır değil; hazır olunca çeviri başlar. Şimdilik İngilizce gösteriliyor."
+            raise RuntimeError("model hazır değil")
         try:
             out = translate(en, rt.settings["model"], rt.profile["glossary"], rt.cache)
             rt.status["error"] = None
@@ -83,15 +87,25 @@ async def run(rt: Runtime, interval: float = 0.15) -> None:
             await asyncio.sleep(max(0, interval - (time.perf_counter() - t0)))
 
 
+def _clear(rt: Runtime, state: dict) -> None:
+    if rt.last_lines:  # eski altyazı TV'de asılı kalmasın
+        rt.last_lines = []
+        rt.emit({"type": "lines", "lines": []})
+    state.update(prev=None, sent="")
+
+
 async def _frame(rt: Runtime, sct, state: dict, tr, t0: float) -> None:
+    rt.status["running"] = rt.settings.get("running", True)
+    if not rt.status["running"]:  # kullanıcı durdurdu: okuma yapma, ama pencere durumunu göster
+        rt.status["window"] = target_rect(rt.profile["source"]) is not None
+        _clear(rt, state)
+        await asyncio.sleep(0.3)
+        return
     profile = rt.profile  # panel her an değiştirebilir; her karede yeniden okunur
     rect = target_rect(profile["source"])
     rt.status["window"] = rect is not None
-    if rect is None:
-        if rt.last_lines:  # pencere kapandı/küçüldü: eski altyazı TV'de asılı kalmasın
-            rt.last_lines = []
-            rt.emit({"type": "lines", "lines": []})
-        state.update(prev=None, sent="")
+    if rect is None:  # pencere kapandı/küçüldü
+        _clear(rt, state)
         await asyncio.sleep(1)
         return
     shot = grab(sct, to_pixels(profile["region"], rect))

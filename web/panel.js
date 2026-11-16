@@ -138,9 +138,17 @@ function renderStatus() {
   ];
   $("chips").replaceChildren(...chips);
 
+  const running = !!st.running;
+  const run = $("btn-run");
+  run.setAttribute("aria-pressed", String(running));
+  run.textContent = running ? "Çeviri açık, durdur" : "Çeviriyi başlat";
+
   const ll = st.lastLine;
   const line = $("last-line");
-  if (ll && ll.lines && ll.lines.length) {
+  if (!running) {
+    line.replaceChildren(Object.assign(document.createElement("span"), {
+      className: "muted", textContent: "Çeviri durduruldu. Kaynağı ve bölgeyi seçip üstteki \"Çeviriyi başlat\" düğmesine basın." }));
+  } else if (ll && ll.lines && ll.lines.length) {
     line.replaceChildren();
     ll.lines.forEach((l, i) => {
       if (i) line.append("  ");
@@ -151,7 +159,11 @@ function renderStatus() {
   }
   const t = $("times");
   t.replaceChildren();
-  if (st.error) { const e = document.createElement("span"); e.className = "err"; e.textContent = st.error; t.append(e); }
+  const pullInfo = st.pull && !st.pull.error;
+  if (pullInfo) {
+    const p = document.createElement("span"); p.className = "info";
+    p.textContent = `Çeviri modeli indiriliyor %${st.pull.pct}. Bitince çeviri kendiliğinden başlar.`; t.append(p);
+  } else if (st.error) { const e = document.createElement("span"); e.className = "err"; e.textContent = st.error; t.append(e); }
   if (st.last) {
     for (const [k, label] of [["capture", "Yakalama"], ["ocr", "OCR"], ["translate", "Çeviri"]]) {
       const s = document.createElement("span"); const v = document.createElement("strong");
@@ -163,6 +175,14 @@ function renderStatus() {
   const n = Math.max(0, (st.clients || 1) - 1);
   $("clients-info").textContent = n ? `${n} gösterim ekranı bağlı.` : "Şu an bağlı gösterim ekranı yok.";
 }
+
+$("btn-run").onclick = () => act(async () => {
+  const want = $("btn-run").getAttribute("aria-pressed") !== "true";
+  await send("set_running", { running: want });
+  S.status = { ...S.status, running: want };
+  renderStatus();
+  toast(want ? "Çeviri başladı" : "Çeviri durduruldu");
+});
 
 // ---------- sekmeler ----------
 document.querySelectorAll("nav button[data-tab]").forEach((b) => {

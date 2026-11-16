@@ -123,3 +123,60 @@ def test_run_adds_new_speakers_on_loop(monkeypatch):
     except TimeoutError:
         pass
     assert rt.profile["speakers"]["Sadie"] == {"color": None, "voice": None} and saved
+
+
+def _fake_frame(monkeypatch, text="Hi.", translated="Selam."):
+    calls = {"ocr": 0, "translate": 0}
+    monkeypatch.setattr(pipeline, "target_rect", lambda src: (0, 0, 10, 10))
+    monkeypatch.setattr(pipeline, "grab", lambda sct, box: None)
+    async def fake_ocr(engine, shot):
+        calls["ocr"] += 1
+        return text
+    def fake_tr(*a):
+        calls["translate"] += 1
+        return translated
+    monkeypatch.setattr(pipeline, "ocr", fake_ocr)
+    monkeypatch.setattr(pipeline, "translate", fake_tr)
+    return calls
+
+
+def _run_briefly(rt, seconds=0.4):
+    try:
+        asyncio.run(asyncio.wait_for(run(rt, interval=0.01), seconds))
+    except TimeoutError:
+        pass
+
+
+def test_paused_does_not_read(monkeypatch):
+    calls = _fake_frame(monkeypatch)
+    sent = []
+    rt = Runtime(settings={"model": "m", "running": False}, profile=copy.deepcopy(P), emit=sent.append)
+    _run_briefly(rt)
+    assert calls["ocr"] == 0 and sent == [] and rt.status["running"] is False
+
+
+def test_pause_clears_subtitle(monkeypatch):
+    _fake_frame(monkeypatch)
+    sent = []
+    rt = Runtime(settings={"model": "m", "running": False}, profile=copy.deepcopy(P), emit=sent.append)
+    rt.last_lines = [{"speaker": None, "color": None, "en": "Hi.", "tr": "Selam."}]
+    _run_briefly(rt)
+    assert sent == [{"type": "lines", "lines": []}]
+
+
+def test_model_not_ready_shows_english_without_ollama(monkeypatch):
+    calls = _fake_frame(monkeypatch)
+    sent = []
+    rt = Runtime(settings={"model": "m"}, profile=copy.deepcopy(P), emit=sent.append)
+    rt.model_ready = False
+    _run_briefly(rt)
+    assert calls["translate"] == 0
+    assert sent[0]["lines"][0]["tr"] == "Hi."
+    assert "hazır değil" in rt.status["error"]
+
+
+def test_paused_still_reports_window(monkeypatch):
+    _fake_frame(monkeypatch)
+    rt = Runtime(settings={"model": "m", "running": False}, profile=copy.deepcopy(P), emit=lambda m: None)
+    _run_briefly(rt)
+    assert rt.status["window"] is True
