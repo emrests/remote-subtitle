@@ -43,7 +43,9 @@ Name: "{commonstartup}\{#AppName}"; Filename: "{app}\remote-subtitle.exe"; Tasks
 Filename: "{tmp}\OllamaSetup.exe"; Parameters: "/VERYSILENT /NORESTART /SUPPRESSMSGBOXES"; \
   StatusMsg: "Çeviri motoru (Ollama) kuruluyor..."; Check: not OllamaInstalled; Flags: waituntilterminated runasoriginaluser
 ; 2) Windows İngilizce OCR dil paketi
-Filename: "powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -Command ""Add-WindowsCapability -Online -Name 'Language.OCR~~~en-US~0.0.1.0'"""; \
+; Şirket WSUS sunucuları bu paketi çoğu zaman vermez ve komut saatlerce asılı kalır: en fazla 4 dakika beklenir,
+; olmazsa kurulum devam eder (uygulama paket olmadan da okur, panelde "OCR" uyarısı görünür).
+Filename: "powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -Command ""$j = Start-Job {{ Add-WindowsCapability -Online -Name 'Language.OCR~~~en-US~0.0.1.0' }; if (-not (Wait-Job $j -Timeout 240)) {{ Stop-Job $j }; exit 0"""; \
   StatusMsg: "İngilizce metin tanıma paketi yükleniyor..."; Flags: runhidden waituntilterminated
 ; 3) TV'nin bağlanabilmesi için güvenlik duvarı kuralı (özel ve ortak ağ; ev Wi-Fi sık sık "ortak" sayılır)
 Filename: "netsh.exe"; Parameters: "advfirewall firewall add rule name=""{#AppName}"" dir=in action=allow protocol=TCP localport={#Port} profile=private,public"; \
