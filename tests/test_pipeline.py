@@ -38,7 +38,8 @@ def test_translate_failure_falls_back_to_english():
 
 def test_stable_sequence():
     s = {"prev": None, "sent": ""}
-    assert [stable(s, t) for t in ["", "Hel", "Hello", "Hello", "Hello", "", ""]] == [None, None, None, "Hello", None, None, ""]
+    # satır 3 kare değişmeden kalınca gönderilir (yazı belirirken yarım okumalar çevrilmesin); silme 2 karede
+    assert [stable(s, t) for t in ["", "Hel", "Hello", "Hello", "Hello", "", ""]] == [None, None, None, None, "Hello", None, ""]
 
 
 def test_run_survives_missing_window(monkeypatch):
@@ -219,17 +220,17 @@ def _feed(frames):
 def test_stable_tolerates_I_l_jitter():
     # gerçek RDR2 ölçümü: OCR her karede I/l arasında gidip geliyordu, satır 0,8 sn gecikiyordu
     out = _feed(["I'm freezing.", "l'm freezing.", "I'm freezing.", "l'm freezing."])
-    assert out[1] is not None and out[2:] == [None, None]
+    assert out[2] is not None and out[3:] == [None]
 
 
 def test_stable_ignores_trailing_junk_after_sent():
-    out = _feed(["Let's try this way.", "Let's try this way.", "Let's try this way.••", "Let's try this way.••"])
-    assert out[1] == "Let's try this way." and out[2:] == [None, None]
+    out = _feed(["Let's try this way."] * 3 + ["Let's try this way.••", "Let's try this way.••"])
+    assert out[2] == "Let's try this way." and out[3:] == [None, None]
 
 
 def test_stable_emits_genuinely_new_line():
-    out = _feed(["Come on, compadre.", "Come on, compadre.", "Ain't you a sorry sight?", "Ain't you a sorry sight?"])
-    assert out == [None, "Come on, compadre.", None, "Ain't you a sorry sight?"]
+    out = _feed(["Come on, compadre."] * 3 + ["Ain't you a sorry sight?"] * 3)
+    assert out == [None, None, "Come on, compadre.", None, None, "Ain't you a sorry sight?"]
 
 
 def test_new_line_is_covered_before_translation(monkeypatch):
@@ -392,3 +393,13 @@ def test_fade_in_partials_not_translated(monkeypatch):
     rt = Runtime(settings={"model": "m"}, profile=copy.deepcopy(P), emit=sent.append)
     _run_briefly(rt, 0.5)
     assert [m["lines"][0]["en"] for m in sent if m["lines"]] == ["That's definitely them."]
+
+
+def test_real_word_partial_not_translated(monkeypatch):
+    # gerçek akış: belirirken "I tin ink.." (gerçek kelimeler!) 2 kare, sonra "I think.." — ikisi de çevriliyordu
+    seq = [("I tin ink..", B)] * 2 + [("I think..", B)] * 10
+    _seq_frame(monkeypatch, seq)
+    sent = []
+    rt = Runtime(settings={"model": "m"}, profile=copy.deepcopy(P), emit=sent.append)
+    _run_briefly(rt, 0.5)
+    assert [m["lines"][0]["en"] for m in sent if m["lines"]] == ["I think.."]

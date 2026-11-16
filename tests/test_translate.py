@@ -116,3 +116,10 @@ def test_word_after_leading_number_is_sentence_start():
 def test_unprotect_suffix_without_apostrophe():
     assert unprotect("Tavrini, kayalıkların kenarına yönlendirin.", {"Tavrin": "Get"}) == "Get'i, kayalıkların kenarına yönlendirin."
     assert unprotect("Tavrin'i gördüm.", {"Tavrin": "Sadie"}) == "Sadie'i gördüm."
+
+
+def test_model_commentary_in_parentheses_removed(monkeypatch):
+    monkeypatch.setattr(translate_mod, "_generate", lambda m, p: "Com? (Bu soruya bir cevap gerekiyor.)")
+    assert translate("Com?", "m", {}, {}) == "Com?"
+    monkeypatch.setattr(translate_mod, "_generate", lambda m, p: "Tamam (sanırım).")
+    assert translate("Okay (I guess).", "m", {}, {}) == "Tamam (sanırım)."  # orijinalde parantez varsa kalır

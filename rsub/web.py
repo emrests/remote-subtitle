@@ -1,6 +1,7 @@
 """Tek port: web/ klasöründen statik dosyalar, WebSocket yayını ve panel komutları."""
 import asyncio
 import base64
+import difflib
 import json
 import mimetypes
 import socket
@@ -21,7 +22,7 @@ from websockets.http11 import Response
 from . import capture, layout, store
 from .models import gpu_vram_mb, installed, model_infos, ollama_up, pull, recommend, start_ollama
 from .ocr import make_ocr, ocr_language
-from .pipeline import Runtime, run
+from .pipeline import Runtime, _same, run
 
 PORT = 8765
 # PyInstaller paketinde dosyalar _MEIPASS altında
@@ -90,7 +91,7 @@ class App:
     def _emit(self, msg: dict) -> None:
         if msg["type"] == "lines" and msg["lines"]:
             entry = {"t": time.time(), "lines": msg["lines"]}
-            self.history.append(entry)
+            self._remember(entry)
             msg = {**msg, "t": entry["t"]}
         self.broadcast(msg)
         if msg["type"] == "lines" and any(l["speaker"] for l in msg["lines"]):
@@ -126,6 +127,23 @@ class App:
         else:
             self.overlay.show(box, img)
         self._overlay_key = key
+
+    def _remember(self, entry: dict) -> None:
+        """Çeviri akışına ekler. 2 sn içinde gelen benzer (daha düzgün) okuma eskisinin yerine geçer;
+        3 sn içinde aynı satır tekrar gelirse eklenmez."""
+        en = " ".join(l["en"] for l in entry["lines"])
+        for h in reversed(self.history):
+            if entry["t"] - h["t"] > 3:
+                break
+            if _same(en, " ".join(l["en"] for l in h["lines"])):
+                return
+        if self.history:
+            last = self.history[-1]
+            prev_en = " ".join(l["en"] for l in last["lines"])
+            if entry["t"] - last["t"] <= 2 and difflib.SequenceMatcher(None, prev_en.lower(), en.lower()).ratio() >= 0.6:
+                self.history[-1] = entry
+                return
+        self.history.append(entry)
 
     def status(self) -> dict:
         model = self.rt.settings["model"]

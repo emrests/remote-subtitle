@@ -57,9 +57,9 @@ def stable(state: dict, text: str, score: float = 1.0) -> str | None:
         state["run"] = 1
         return None
     state["run"] = state.get("run", 1) + 1
-    # tam okunmamış satır (sözlükte olmayan kelime var) yazı belirirken yarım okunmuş olabilir:
-    # değişmeden 4 kare (0,4 sn) kalmadan çevirme ("tinenn" → "then" → "them" üç kez çevriliyordu)
-    if text and score < 0.999 and state["run"] < 4:
+    # yazı belirirken/kaybolurken yarım okunabilir ("I tin ink..", "tinenn"): satır değişmeden 3 kare,
+    # sözlükte olmayan kelime varsa 4 kare kalmadan çevirme. Ekran bu sırada boş kapakla kapalı.
+    if text and state["run"] < (3 if score >= 0.999 else 4):
         return None
     if _same(text, state["sent"]):
         if text and _norm(text) == _norm(prev) and score > state.get("score", 1.0) + 0.15:

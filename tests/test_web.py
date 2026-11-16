@@ -283,7 +283,9 @@ def test_pending_line_shows_blank_cover():
     assert box["left"] <= 480 + 380 and box["left"] + box["width"] >= 480 + 580  # İngilizce satır kapalı
 
 
-def test_history_keeps_last_20_translations():
+def test_history_keeps_last_20_translations(monkeypatch):
+    clock = iter(range(0, 1000, 5))  # satırlar 5 sn arayla (benzer okumalar birleşmesin)
+    monkeypatch.setattr(web.time, "time", lambda: next(clock))
     a = web.App(web.WEB_DIR, None)
     for i in range(25):
         a._emit({"type": "lines", "lines": [{"speaker": None, "color": None, "en": f"Line {i}", "tr": f"Satır {i}"}]})
@@ -299,3 +301,22 @@ async def test_state_includes_history(app, port):
     async with connect(f"ws://127.0.0.1:{port}") as ws:
         r = await _cmd(ws, cmd="get_state")
         assert r["data"]["history"][-1]["lines"][0]["tr"] == "Selam."
+
+
+def _line(en, tr="x"):
+    return {"type": "lines", "lines": [{"speaker": None, "color": None, "en": en, "tr": tr}]}
+
+
+def test_history_replaces_quick_better_reading():
+    a = web.App(web.WEB_DIR, None)
+    a._emit(_line("I tin ink..", "Mürekkep"))
+    a._emit(_line("I think..", "Bence..."))
+    assert [h["lines"][0]["en"] for h in a.history] == ["I think.."]
+
+
+def test_history_skips_recent_duplicate():
+    a = web.App(web.WEB_DIR, None)
+    a._emit(_line("Yeah... that's him."))
+    a._emit({"type": "lines", "lines": []})
+    a._emit(_line("Yeah... that's him."))
+    assert len(a.history) == 1

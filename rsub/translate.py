@@ -148,5 +148,7 @@ def translate(text: str, model: str, glossary: dict, cache: dict, known: set[str
         out = _generate(model, build_prompt(masked, glossary)).strip()
         if _REFUSAL.search(out):  # model çeviri yerine "anlayamadım" dedi: çeviri sayma
             raise ValueError("model metni çeviremedi")
+        if "(" not in text:  # orijinalde parantez yoksa modelin eklediği yorum: "Com? (Bu soruya bir cevap gerekiyor.)"
+            out = re.sub(r"\s*\([^)]*\)", "", out).strip()
         cache[key] = unprotect(out, mapping)
     return cache[key]
