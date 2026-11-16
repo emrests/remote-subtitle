@@ -50,3 +50,41 @@ async def ocr(engine, shot) -> OcrText:
         x1, y1 = max(r.x + r.width for r in rects), max(r.y + r.height for r in rects)
         out.box = (round(x0), round(y0), round(x1 - x0), round(y1 - y0))
     return out
+
+
+class _Frame:
+    def __init__(self, img):
+        self.width, self.height = img.size
+        self.bgra = img.convert("RGBA").tobytes("raw", "BGRA")
+
+
+BRIGHT_SCALE, BRIGHT_THRESHOLD = 2, 195
+
+
+def bright_text(shot):
+    """Kutusuz, parlak zemin üstündeki yazı için (RDR2 görev yazısı karda): 2x büyüt, yalnız en parlak pikselleri
+    siyah yazı olarak bırak. Ölçüm: normal okuma 'ffi' / boş, bu yöntem 'Get to the cliff edge'."""
+    from PIL import Image
+    img = Image.frombytes("RGB", shot.size, shot.rgb)
+    g = img.resize((img.width * BRIGHT_SCALE, img.height * BRIGHT_SCALE), Image.LANCZOS).convert("L")
+    return _Frame(g.point(lambda v: 0 if v > BRIGHT_THRESHOLD else 255))
+
+
+async def read_best(engine, shot, known: set[str]) -> "OcrText":
+    """Önce normal okuma; zayıf ya da kısaysa (puan < 0,9 veya 3 kelimeden az) parlak-yazı yöntemiyle de oku,
+    iyisini al. Normal altyazıda ikinci okuma çalışmaz."""
+    from .cleanup import clean
+    first = await ocr(engine, shot)
+    s1 = clean(first, known)[1] if first else 0.0
+    w1 = len(str(first).split())
+    # tek kelimelik çöp ("ffi" → düzeltmeyle "fri") puanı kandırır: kısa okumada da ikinci yöntemi dene
+    if (s1 >= 0.9 and w1 >= 3) or not hasattr(shot, "rgb"):
+        return first
+    second = await ocr(engine, bright_text(shot))
+    s2 = clean(second, known)[1] if second else 0.0
+    w2 = len(str(second).split())
+    if not (s2 > s1 + 0.1 or (s2 >= 0.8 and w2 > w1)):
+        return first
+    if second.box:
+        second.box = tuple(round(v / BRIGHT_SCALE) for v in second.box)
+    return second

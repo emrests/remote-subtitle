@@ -11,7 +11,7 @@ from PIL import Image
 
 from . import store
 from .capture import grab, target_rect, to_pixels
-from .ocr import ocr
+from .ocr import read_best as ocr  # normal okuma, zayıfsa parlak-yazı yöntemi
 from .speaker import split_speakers
 from .cleanup import GARBAGE_BELOW, clean
 from .layout import font_px
@@ -185,8 +185,8 @@ async def _frame(rt: Runtime, sct, state: dict, tr, t0: float) -> None:
     shot = grab(sct, to_pixels(profile["region"], rect))
     t1 = time.perf_counter()
     region_img = Image.frombytes("RGB", shot.size, shot.rgb) if shot is not None and rt.on_frame else None
-    text = await ocr(rt.engine, shot)
     rt.known_names.update(rt.profile["speakers"])
+    text = await ocr(rt.engine, shot, rt.known_names)
     text, score = clean(text, rt.known_names) if text else (text, 0.0)
     if text and score < GARBAGE_BELOW:  # çöp okuma ("2LİÇJ3"): çevirme, boş kare say
         text = type(text)("") if hasattr(text, "box") else ""
