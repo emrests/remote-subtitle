@@ -249,3 +249,77 @@ def test_new_line_is_covered_before_translation(monkeypatch):
 def test_default_interval_is_100ms():
     import inspect
     assert inspect.signature(run).parameters["interval"].default == 0.1
+
+
+def _seq_frame(monkeypatch, seq, translated="Selam."):
+    """OCR'ın kare kare döndüreceği (metin, kutu) dizisi; dizi bitince son öğe tekrarlanır."""
+    from rsub.ocr import OcrText
+    it = iter(seq)
+    last = [seq[-1]]
+    monkeypatch.setattr(pipeline, "target_rect", lambda src: (0, 0, 1000, 200))
+    monkeypatch.setattr(pipeline, "grab", lambda sct, box: None)
+
+    async def fake_ocr(engine, shot):
+        text, box = next(it, last[0])
+        out = OcrText(text)
+        out.box, out.lines = (box, 1) if text else (None, 0)
+        return out
+    monkeypatch.setattr(pipeline, "ocr", fake_ocr)
+    monkeypatch.setattr(pipeline, "translate", lambda *a: translated)
+
+
+def _record(rt):
+    frames = []
+    rt.on_frame = lambda rect, img=None: frames.append((rt.pending_box, [l["tr"] for l in rt.last_lines], rt.text_box))
+    return frames
+
+
+B = (100, 50, 400, 40)
+LINE_A = "We can't go back the way we came."
+
+
+def test_one_frame_misread_does_not_blank_translation(monkeypatch):
+    seq = [(LINE_A, B)] * 4 + [("We can't go", (100, 50, 180, 40))] + [(LINE_A, B)] * 10  # bir karede yarım okuma
+    _seq_frame(monkeypatch, seq)
+    rt = Runtime(settings={"model": "m"}, profile=copy.deepcopy(P), emit=lambda m: None)
+    frames = _record(rt)
+    _run_briefly(rt, 0.4)
+    shown = [i for i, f in enumerate(frames) if f[1]]
+    assert shown and all(frames[i][0] is None and frames[i][1] for i in range(shown[0], len(frames)))
+
+
+def test_single_empty_frame_does_not_clear(monkeypatch):
+    seq = [(LINE_A, B)] * 4 + [("", None)] + [(LINE_A, B)] * 10
+    _seq_frame(monkeypatch, seq)
+    sent = []
+    rt = Runtime(settings={"model": "m"}, profile=copy.deepcopy(P), emit=sent.append)
+    _run_briefly(rt, 0.4)
+    assert [m["lines"] for m in sent].count([]) == 0
+
+
+def test_three_empty_frames_clear(monkeypatch):
+    seq = [(LINE_A, B)] * 4 + [("", None)] * 10
+    _seq_frame(monkeypatch, seq)
+    sent = []
+    rt = Runtime(settings={"model": "m"}, profile=copy.deepcopy(P), emit=sent.append)
+    _run_briefly(rt, 0.4)
+    assert sent[-1]["lines"] == []
+
+
+def test_cover_grows_to_full_line_while_fading_in(monkeypatch):
+    small, full = (180, 55, 240, 30), (100, 50, 400, 40)
+    seq = [(LINE_A, small), (LINE_A, small), (LINE_A, small), (LINE_A, full)] + [(LINE_A, small)] * 10
+    _seq_frame(monkeypatch, seq)
+    rt = Runtime(settings={"model": "m"}, profile=copy.deepcopy(P), emit=lambda m: None)
+    frames = _record(rt)
+    _run_briefly(rt, 0.4)
+    assert frames[-1][2] == full  # yarım okunan kareler kutuyu küçültmez
+
+
+def test_real_new_line_switches_after_two_frames(monkeypatch):
+    seq = [(LINE_A, B)] * 4 + [("Let's try this way instead.", (150, 50, 300, 40))] * 10
+    _seq_frame(monkeypatch, seq, translated="X")
+    rt = Runtime(settings={"model": "m"}, profile=copy.deepcopy(P), emit=lambda m: None)
+    frames = _record(rt)
+    _run_briefly(rt, 0.5)
+    assert any(f[0] is not None for f in frames[5:])  # yeni satır boş kutuyla kapatıldı

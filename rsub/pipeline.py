@@ -37,6 +37,14 @@ def _same(a: str | None, b: str | None) -> bool:
     return na == nb or difflib.SequenceMatcher(None, na, nb).ratio() >= 0.9
 
 
+def _union(a: tuple | None, b: tuple | None) -> tuple | None:
+    if a is None or b is None:
+        return a or b
+    x0, y0 = min(a[0], b[0]), min(a[1], b[1])
+    x1, y1 = max(a[0] + a[2], b[0] + b[2]), max(a[1] + a[3], b[1] + b[3])
+    return x0, y0, x1 - x0, y1 - y0
+
+
 def stable(state: dict, text: str) -> str | None:
     """Metin art arda 2 karede (OCR titremesine rağmen) aynı kaldığında ve son gönderilenden farklıysa döndürür.
     Ekrandan kalkınca "" döndürür (altyazıyı temizlemek için). Aksi halde None."""
@@ -78,6 +86,7 @@ class Runtime:
     text_box: tuple | None = None  # gösterilen İngilizce satırın bölgedeki konumu (OCR'dan)
     text_lines: int = 0  # orijinal altyazının satır sayısı
     pending_box: tuple | None = None  # ((x,y,w,h), satır) — görünen ama henüz çevrilmemiş yeni satır: hemen kapatılır
+    diff_frames: int = 0  # gösterilen satırdan farklı okunan ardışık kare sayısı (OCR titremesine karşı)
     on_frame: Callable | None = None  # her karede kaynak dikdörtgeniyle (ya da None) çağrılır: katman konumu
     status: dict = field(default_factory=lambda: {"window": False, "last": None, "avgMs": None,
                                                   "slow": False, "error": None, "running": True})
@@ -108,6 +117,26 @@ async def run(rt: Runtime, interval: float = 0.1) -> None:
                 await asyncio.sleep(ERROR_PAUSE)
                 continue
             await asyncio.sleep(max(0, interval - (time.perf_counter() - t0)))
+
+
+def _track_cover(rt: Runtime, state: dict, text) -> None:
+    """Kapağın nerede ve ne zaman olacağına karar verir (çeviri beklenmeden).
+    - Ekranda Türkçe yokken yeni satır: ilk karede kapat.
+    - Türkçe gösterilirken farklı okuma: ancak 2 kare üst üste sürerse yeni satır say (OCR titremesi/yarım okuma).
+    - Aynı satır sürdükçe kutu yalnızca büyür (belirirken yarım okunan kareler küçültmez).
+    - Boş kareler kapağı değiştirmez; satırın silinmesine stable() karar verir."""
+    box = getattr(text, "box", None)
+    if not (text and box):
+        return
+    if state["sent"] and _same(text, state["sent"]):
+        rt.diff_frames = 0
+        rt.pending_box = None
+        rt.text_box = _union(rt.text_box, box)
+        return
+    rt.diff_frames += 1
+    if not rt.last_lines or rt.diff_frames >= 2:
+        prev = rt.pending_box[0] if rt.pending_box else None
+        rt.pending_box = (_union(prev, box), getattr(text, "lines", 0))
 
 
 def _clear(rt: Runtime, state: dict) -> None:
@@ -142,9 +171,7 @@ async def _frame(rt: Runtime, sct, state: dict, tr, t0: float) -> None:
     region_img = Image.frombytes("RGB", shot.size, shot.rgb) if shot is not None and rt.on_frame else None
     text = await ocr(rt.engine, shot)
     t2 = time.perf_counter()
-    # Yeni bir İngilizce satır göründüyse yerini HEMEN kapat (çeviriyi bekleme); çeviri gelince içine yazılır
-    box = getattr(text, "box", None)
-    rt.pending_box = (box, getattr(text, "lines", 0)) if text and box and not _same(text, state["sent"]) else None
+    _track_cover(rt, state, text)
     if rt.on_frame:
         rt.on_frame(rect, region_img)
     line = stable(state, text)
@@ -153,9 +180,10 @@ async def _frame(rt: Runtime, sct, state: dict, tr, t0: float) -> None:
     lines, new = await asyncio.to_thread(build_lines, line, profile, tr)
     t3 = time.perf_counter()
     rt.last_lines = lines
-    rt.text_box = getattr(line, "box", None)
+    rt.text_box = _union(rt.pending_box[0] if rt.pending_box else None, getattr(line, "box", None))
     rt.text_lines = getattr(line, "lines", 0)
     rt.pending_box = None
+    rt.diff_frames = 0
     rt.emit({"type": "lines", "lines": lines})
     if rt.on_frame:
         rt.on_frame(rect, region_img)
