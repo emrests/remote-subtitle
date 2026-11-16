@@ -1,0 +1,7 @@
+__pycache__/
+.pytest_cache/
+.superpowers/
+build/
+dist/
+packaging/vendor/
+packaging/Output/

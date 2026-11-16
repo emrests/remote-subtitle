@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<title>Altyazı</title>
+<style>
+  html, body { margin: 0; width: 1920px; height: 1080px; background: #000; overflow: hidden; font-family: sans-serif; }
+  /* TV'de burası HDMI penceresi (TVWindow) olacak; işte arkaya bir video koymak için ?bg=URL */
+  #bg { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; }
+  #sub { position: absolute; left: 0; right: 0; top: 60px; text-align: center; }
+  #sub span { display: inline-block; max-width: 1600px; padding: 12px 28px; border-radius: 8px;
+              background: rgba(0,0,0,.75); color: #fff; font-size: 48px; line-height: 1.3; }
+  #sub span:empty { display: none; }
+  #status { position: absolute; right: 16px; bottom: 12px; color: #888; font-size: 20px; }
+</style>
+</head>
+<body>
+<video id="bg" autoplay muted loop></video>
+<div id="sub"><span id="tr"></span></div>
+<div id="status">bağlanıyor…</div>
+<script>
+  const q = new URLSearchParams(location.search);
+  const host = q.get("host") || location.hostname || "localhost";
+  if (q.get("bg")) document.getElementById("bg").src = q.get("bg");
+  const tr = document.getElementById("tr"), status = document.getElementById("status");
+  function connect() {
+    const ws = new WebSocket(`ws://${host}:8765`);
+    ws.onopen = () => status.textContent = "";
+    ws.onmessage = e => tr.textContent = JSON.parse(e.data).tr;
+    ws.onclose = () => { status.textContent = "bağlantı yok, yeniden deneniyor…"; setTimeout(connect, 2000); };
+  }
+  connect();
+</script>
+</body>
+</html>
