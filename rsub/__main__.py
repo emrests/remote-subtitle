@@ -1,3 +1,3 @@
-from .app import main
+from rsub.app import main
 
 main()
