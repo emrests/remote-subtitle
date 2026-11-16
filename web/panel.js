@@ -277,6 +277,7 @@ function renderStyleForm() {
   $("st-offset").value = st.offset; $("o-offset").value = st.offset + " px";
   $("st-color").value = st.color; $("st-name").value = st.nameColor; $("st-bg").value = st.bg;
   $("st-op").value = st.bgOpacity; $("o-op").value = "%" + Math.round(st.bgOpacity * 100);
+  $("st-blur").value = st.blur ?? 16; $("o-blur").value = (st.blur ?? 16) + " px";
   $("st-pos").querySelectorAll("button").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.v === st.position)));
 }
 
@@ -292,6 +293,7 @@ $("st-color").oninput = (e) => setStyle("color", e.target.value);
 $("st-name").oninput = (e) => setStyle("nameColor", e.target.value);
 $("st-bg").oninput = (e) => setStyle("bg", e.target.value);
 $("st-op").oninput = (e) => setStyle("bgOpacity", +e.target.value);
+$("st-blur").oninput = (e) => setStyle("blur", +e.target.value);
 $("st-pos").querySelectorAll("button").forEach((b) => (b.onclick = () => setStyle("position", b.dataset.v)));
 
 function renderPreview() {

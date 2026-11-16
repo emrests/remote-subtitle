@@ -9,7 +9,7 @@
 .sub-line {
   max-width: 85%;
   padding: 0.2em 0.6em;
-  border-radius: 0.18em;
+  border-radius: 0.45em;
   background: var(--sub-bg, rgba(0,0,0,.75));
   color: var(--sub-color, #fff);
   font-family: var(--sub-font, "Segoe UI", sans-serif);

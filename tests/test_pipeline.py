@@ -186,10 +186,23 @@ def test_on_frame_reports_rect_and_none_when_paused(monkeypatch):
     _fake_frame(monkeypatch)
     seen = []
     rt = Runtime(settings={"model": "m"}, profile=copy.deepcopy(P), emit=lambda m: None)
-    rt.on_frame = seen.append
+    rt.on_frame = lambda rect, img=None: seen.append(rect)
     _run_briefly(rt, 0.2)
     assert (0, 0, 10, 10) in seen
     seen.clear()
     rt.settings["running"] = False
     _run_briefly(rt, 0.2)
     assert seen and set(seen) == {None}
+
+
+def test_on_frame_gets_region_image(monkeypatch):
+    _fake_frame(monkeypatch)
+
+    class Shot:
+        size, rgb = (2, 1), b"\x00" * 6
+    monkeypatch.setattr(pipeline, "grab", lambda sct, box: Shot())
+    seen = []
+    rt = Runtime(settings={"model": "m"}, profile=copy.deepcopy(P), emit=lambda m: None)
+    rt.on_frame = lambda rect, img=None: seen.append(img)
+    _run_briefly(rt, 0.2)
+    assert any(i is not None and i.size == (2, 1) for i in seen)

@@ -1,17 +1,17 @@
 """Çeviriyi bir dikdörtgene (orijinal altyazı bölgesi) sığdırıp RGBA görüntü olarak çizer.
 
-Kaynağın üstündeki katman (overlay.py) bu görüntüyü gösterir. Bölge tamamen arka planla kaplanır,
-böylece altındaki İngilizce altyazı görünmez.
+Kaynağın üstündeki katman (overlay.py) bu görüntüyü gösterir. Bölge, yuvarlak köşeli bir kutuyla kaplanır.
+Kutunun zemini o bölgenin bulanıklaştırılmış görüntüsüdür (buzlu cam): altındaki İngilizce altyazı okunmaz,
+sahne görünmeye devam eder. Üstüne saydamlık ayarlı koyu tül ve çeviri çizilir.
 """
 import os
 import winreg
 from functools import lru_cache
 
-from PIL import Image, ImageDraw, ImageFont
+from PIL import Image, ImageDraw, ImageFilter, ImageFont
 
 FONTS_DIR = os.path.join(os.environ.get("WINDIR", r"C:\Windows"), "Fonts")
 MIN_PX = 12
-COVER_ALPHA = 0.92  # bölgeyi kapatmak için en az bu kadar opak (İngilizce altyazı alttan görünmesin)
 
 
 @lru_cache(maxsize=64)
@@ -86,11 +86,27 @@ def fit(lines: list[dict], style: dict, box_w: int, box_h: int, scale: float) ->
         px = max(MIN_PX, int(px * 0.9))
 
 
-def render(lines: list[dict], style: dict, w: int, h: int, scale: float):
+def _frosted(backdrop, w: int, h: int, radius: float):
+    """Bulanık zemin. Hız için küçültüp bulanıklaştırır, sonra büyütür (~birkaç ms)."""
+    k = 4
+    small = backdrop.convert("RGB").resize((max(1, w // k), max(1, h // k)), Image.BILINEAR)
+    small = small.filter(ImageFilter.GaussianBlur(max(1.0, radius / k)))
+    return small.resize((w, h), Image.BILINEAR).convert("RGBA")
+
+
+def render(lines: list[dict], style: dict, w: int, h: int, scale: float, backdrop=None):
     lines = [l for l in lines if l.get("tr")]
     if not lines or w < 4 or h < 4:
         return None
-    img = Image.new("RGBA", (w, h), _rgba(style["bg"], max(style["bgOpacity"], COVER_ALPHA)))
+    blur = style.get("blur", 0) * scale
+    if backdrop is not None and blur > 0:
+        img = _frosted(backdrop, w, h, blur)
+        img.alpha_composite(Image.new("RGBA", (w, h), _rgba(style["bg"], style["bgOpacity"])))
+    else:
+        img = Image.new("RGBA", (w, h), _rgba(style["bg"], style["bgOpacity"]))
+    mask = Image.new("L", (w, h), 0)  # yuvarlak köşeler
+    ImageDraw.Draw(mask).rounded_rectangle([0, 0, w - 1, h - 1], radius=max(4, min(h // 3, round(18 * scale))), fill=255)
+    img.putalpha(Image.composite(img.getchannel("A"), mask, mask))
     draw = ImageDraw.Draw(img)
     _, rows = fit(lines, style, w, h, scale)
     y = (h - sum(r["height"] for r in rows)) // 2

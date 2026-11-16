@@ -89,7 +89,7 @@ class App:
         if msg["type"] == "lines" and any(l["speaker"] for l in msg["lines"]):
             self.broadcast({"type": "profile", "profile": self.rt.profile})  # yeni karakterler panelde görünsün
 
-    def sync_overlay(self, rect) -> None:
+    def sync_overlay(self, rect, backdrop=None) -> None:
         """Çeviriyi kaynak penceredeki altyazı bölgesinin tam üstüne koyar (İngilizceyi kapatır)."""
         if self.overlay is None:
             return
@@ -101,10 +101,12 @@ class App:
             return
         box = capture.to_pixels(self.rt.profile["region"], rect)
         style = self.rt.profile["style"]
+        blurred = backdrop is not None and style.get("blur", 0) > 0
         key = (tuple(box.values()), json.dumps(lines, sort_keys=True), json.dumps(style, sort_keys=True))
-        if key == self._overlay_key:
+        if key == self._overlay_key and not blurred:  # bulanık zeminde arka plan her karede değişir
             return
-        img = layout.render(lines, style, box["width"], box["height"], scale=rect[3] / 1080)
+        img = layout.render(lines, style, box["width"], box["height"], scale=rect[3] / 1080,
+                            backdrop=backdrop if blurred else None)
         if img is None:
             self.overlay.hide()
         else:

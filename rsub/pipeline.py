@@ -6,6 +6,7 @@ from dataclasses import dataclass, field
 from typing import Any, Callable
 
 import mss
+from PIL import Image
 
 from . import store
 from .capture import grab, target_rect, to_pixels
@@ -115,19 +116,20 @@ async def _frame(rt: Runtime, sct, state: dict, tr, t0: float) -> None:
         return
     shot = grab(sct, to_pixels(profile["region"], rect))
     t1 = time.perf_counter()
+    region_img = Image.frombytes("RGB", shot.size, shot.rgb) if shot is not None and rt.on_frame else None
     text = await ocr(rt.engine, shot)
     t2 = time.perf_counter()
     line = stable(state, text)
     if line is None:
         if rt.on_frame:
-            rt.on_frame(rect)
+            rt.on_frame(rect, region_img)
         return
     lines, new = await asyncio.to_thread(build_lines, line, profile, tr)
     t3 = time.perf_counter()
     rt.last_lines = lines
     rt.emit({"type": "lines", "lines": lines})
     if rt.on_frame:
-        rt.on_frame(rect)
+        rt.on_frame(rect, region_img)
     # Yeni konuşmacılar döngü iş parçacığında eklenir (panel komutlarıyla yarışmasın);
     # panel bu arada profili değiştirdiyse eski profile yazılmaz.
     if new and rt.profile is profile:

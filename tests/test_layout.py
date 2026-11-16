@@ -26,10 +26,31 @@ def test_long_text_wraps_and_shrinks_into_box():
     assert sum(r["height"] for r in rows) <= 90
 
 
-def test_render_covers_whole_region():
+def test_render_has_rounded_corners():
     img = render(LINE, STYLE, 900, 120, scale=1.0)
     assert img.size == (900, 120) and img.mode == "RGBA"
-    assert img.getpixel((2, 2))[3] >= 230 and img.getpixel((897, 117))[3] >= 230  # köşeler de kapalı
+    assert img.getpixel((0, 0))[3] == 0 and img.getpixel((899, 119))[3] == 0  # köşe dışı saydam
+    assert img.getpixel((450, 3))[3] > 0  # kenar ortası dolu
+
+
+def test_render_respects_opacity_without_backdrop():
+    style = {**STYLE, "bgOpacity": 0.3}
+    img = render([{**LINE[0], "speaker": None, "tr": "."}], style, 900, 120, scale=1.0)
+    assert abs(img.getpixel((40, 60))[3] - 77) <= 2  # zorunlu %92 yok
+
+
+def test_backdrop_is_blurred_and_opaque():
+    from PIL import Image, ImageDraw
+    src = Image.new("RGB", (900, 120), "white")
+    d = ImageDraw.Draw(src)
+    for x in range(0, 900, 6):
+        d.line([(x, 0), (x, 119)], fill="black", width=3)  # keskin çizgiler = "İngilizce yazı"
+    style = {**STYLE, "bgOpacity": 0.0, "blur": 16}
+    img = render([{**LINE[0], "speaker": None, "tr": "."}], style, 900, 120, scale=1.0, backdrop=src)
+    row = [img.getpixel((x, 60)) for x in range(100, 300)]
+    assert all(p[3] == 255 for p in row)  # bulanık zemin opak: alttaki yazı görünmez
+    lum = [p[0] for p in row]
+    assert max(lum) - min(lum) < 60  # çizgiler eridi (kaynakta fark 255)
 
 
 def test_render_name_has_speaker_color():

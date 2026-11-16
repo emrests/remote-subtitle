@@ -223,3 +223,12 @@ def test_overlay_hides_after_being_shown():
     a.rt.settings["running"] = False
     a.sync_overlay(None)
     assert len(a.overlay.shown) == 1 and a.overlay.hidden == 1
+
+
+def test_overlay_rerenders_each_frame_when_blurred():
+    from PIL import Image
+    a = _overlay_app()
+    a.rt.profile["style"]["blur"] = 16
+    a.sync_overlay((0, 0, 1920, 1080), Image.new("RGB", (960, 108), "red"))
+    a.sync_overlay((0, 0, 1920, 1080), Image.new("RGB", (960, 108), "blue"))
+    assert len(a.overlay.shown) == 2  # arka plan değişti → yeniden çiz
