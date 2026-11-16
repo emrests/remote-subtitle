@@ -5,7 +5,7 @@ const SAMPLE = [{ speaker: "Arthur", color: null, en: "Hello my friend!", tr: "M
 
 let ws = null, nextId = 1;
 const pending = new Map();
-const S = { settings: null, profile: null, profiles: [], models: [], vram: null, ip: "", port: 8765, status: {}, shot: null };
+const S = { settings: null, profile: null, profiles: [], models: [], vram: null, ip: "", port: 8765, status: {}, shot: null, history: [] };
 
 // ---------- iletişim ----------
 function send(cmd, args = {}) {
@@ -23,6 +23,9 @@ function onMessage(msg) {
     if (!p) return;
     pending.delete(msg.id);
     msg.ok ? p.resolve(msg.data) : p.reject(new Error(msg.error || "Hata"));
+  } else if (msg.type === "lines" && msg.lines.length) {
+    S.history = [...S.history, { t: msg.t || Date.now() / 1000, lines: msg.lines }].slice(-20);
+    renderFeed(true);
   } else if (msg.type === "status") {
     S.status = msg.status;
     renderStatus();
@@ -60,13 +63,13 @@ function saveProfileSoon() {
 
 async function loadState() {
   const d = await send("get_state");
-  Object.assign(S, { settings: d.settings, profile: d.profile, profiles: d.profiles, models: d.models, vram: d.vramMb, ip: d.ip, port: d.port, status: d.status });
+  Object.assign(S, { settings: d.settings, profile: d.profile, profiles: d.profiles, models: d.models, vram: d.vramMb, ip: d.ip, port: d.port, status: d.status, history: d.history || [] });
   renderAll();
   loadSources();
 }
 
 function renderAll() {
-  renderProfiles(); renderStyleForm(); renderPreview(); renderRegion(); renderGlossary(); renderChars(); renderModels(); renderConn(); renderStatus();
+  renderProfiles(); renderStyleForm(); renderPreview(); renderRegion(); renderGlossary(); renderChars(); renderModels(); renderConn(); renderStatus(); renderFeed(false);
 }
 
 // ---------- üst çubuk ----------
@@ -189,6 +192,34 @@ $("btn-run").onclick = () => act(async () => {
   renderStatus();
   toast(want ? "Çeviri başladı" : "Çeviri durduruldu");
 });
+
+// ---------- çeviri akışı ----------
+function renderFeed(fresh) {
+  const box = $("feed-rows");
+  const main = document.querySelector("main");
+  const atBottom = main.scrollHeight - main.scrollTop - main.clientHeight < 40;
+  $("feed-empty").hidden = S.history.length > 0;
+  box.replaceChildren(...S.history.map((h, i) => {
+    const row = document.createElement("div");
+    row.className = "feed-row" + (fresh && i === S.history.length - 1 ? " fresh" : "");
+    const time = document.createElement("time");
+    time.textContent = new Date(h.t * 1000).toLocaleTimeString("tr-TR", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+    const en = document.createElement("div"); en.className = "en";
+    const tr = document.createElement("div"); tr.className = "tr";
+    h.lines.forEach((l, j) => {
+      if (j) { en.append(document.createElement("br")); tr.append(document.createElement("br")); }
+      if (l.speaker) {
+        const who = document.createElement("span"); who.className = "who"; who.textContent = l.speaker + ":";
+        who.style.color = l.color || S.profile?.style?.nameColor || "";
+        tr.append(who); en.append(l.speaker + ": ");
+      }
+      en.append(l.en); tr.append(l.tr);
+    });
+    row.append(time, en, tr);
+    return row;
+  }));
+  if (fresh && atBottom && !$("tab-feed").hidden) main.scrollTop = main.scrollHeight;  // alttaysa akışı takip et
+}
 
 // ---------- sekmeler ----------
 document.querySelectorAll("nav button[data-tab]").forEach((b) => {

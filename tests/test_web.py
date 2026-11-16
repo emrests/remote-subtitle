@@ -281,3 +281,21 @@ def test_pending_line_shows_blank_cover():
     a.sync_overlay((0, 0, 1920, 1080))
     box, size = a.overlay.shown[-1]
     assert box["left"] <= 480 + 380 and box["left"] + box["width"] >= 480 + 580  # İngilizce satır kapalı
+
+
+def test_history_keeps_last_20_translations():
+    a = web.App(web.WEB_DIR, None)
+    for i in range(25):
+        a._emit({"type": "lines", "lines": [{"speaker": None, "color": None, "en": f"Line {i}", "tr": f"Satır {i}"}]})
+        a._emit({"type": "lines", "lines": []})  # silme olayları geçmişe girmez
+    h = list(a.history)
+    assert len(h) == 20 and h[0]["lines"][0]["en"] == "Line 5" and h[-1]["lines"][0]["tr"] == "Satır 24"
+    assert "t" in h[-1]
+
+
+@with_app
+async def test_state_includes_history(app, port):
+    app._emit({"type": "lines", "lines": [{"speaker": "Arthur", "color": "#f00", "en": "Hi.", "tr": "Selam."}]})
+    async with connect(f"ws://127.0.0.1:{port}") as ws:
+        r = await _cmd(ws, cmd="get_state")
+        assert r["data"]["history"][-1]["lines"][0]["tr"] == "Selam."

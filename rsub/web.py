@@ -6,6 +6,8 @@ import mimetypes
 import socket
 import subprocess
 import sys
+import time
+from collections import deque
 from http import HTTPStatus
 from pathlib import Path
 from typing import Callable
@@ -70,6 +72,7 @@ class App:
         self.rt = Runtime(settings, store.load_profile(settings["profile"]), self._emit)
         self.rt.on_frame = self.sync_overlay
         self.overlay = None  # serve_app gerçek katmanı bağlar; testler sahtesini
+        self.history: deque = deque(maxlen=20)  # paneldeki çeviri akışı
         self._overlay_key = None
         self.clients: set = set()
         self.port = PORT
@@ -85,6 +88,10 @@ class App:
         websockets.broadcast(self.clients, json.dumps(msg, ensure_ascii=False))
 
     def _emit(self, msg: dict) -> None:
+        if msg["type"] == "lines" and msg["lines"]:
+            entry = {"t": time.time(), "lines": msg["lines"]}
+            self.history.append(entry)
+            msg = {**msg, "t": entry["t"]}
         self.broadcast(msg)
         if msg["type"] == "lines" and any(l["speaker"] for l in msg["lines"]):
             self.broadcast({"type": "profile", "profile": self.rt.profile})  # yeni karakterler panelde görünsün
@@ -197,7 +204,7 @@ class App:
             self.vram = await asyncio.to_thread(gpu_vram_mb)
         return {"settings": self.rt.settings, "profile": self.rt.profile, "profiles": store.list_profiles(),
                 "models": model_infos(self.vram, self.models), "vramMb": self.vram, "ip": local_ip(),
-                "port": self.port, "status": self.status()}
+                "port": self.port, "status": self.status(), "history": list(self.history)}
 
     async def cmd_select_profile(self, msg):
         self.rt.settings["profile"] = msg["name"]

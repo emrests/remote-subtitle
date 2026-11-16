@@ -30,6 +30,7 @@
 
 <div class="body">
   <nav aria-label="Bölümler">
+    <button data-tab="feed">Çeviri akışı</button>
     <button data-tab="source" aria-current="page">Kaynak ve bölge</button>
     <button data-tab="style">Görünüm</button>
     <button data-tab="glossary">Terimler</button>
@@ -40,6 +41,21 @@
   </nav>
 
   <main>
+    <!-- Çeviri akışı -->
+    <section id="tab-feed" hidden>
+      <header>
+        <div>
+          <h2>Çeviri akışı</h2>
+          <p class="muted">Son 20 altyazı: solda orijinal, sağda çeviri. Yeni satırlar alta eklenir.</p>
+        </div>
+      </header>
+      <div class="feed" id="feed" aria-live="polite">
+        <div class="feed-head"><span></span><span>Orijinal</span><span>Çeviri</span></div>
+        <div id="feed-rows"></div>
+        <div class="empty" id="feed-empty">Henüz çeviri yok. Çeviriyi başlattığınızda altyazılar burada akar.</div>
+      </div>
+    </section>
+
     <!-- Kaynak ve bölge -->
     <section id="tab-source">
       <header>
