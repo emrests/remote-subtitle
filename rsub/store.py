@@ -32,12 +32,25 @@ def _read(path: Path):
 
 
 def _write(path: Path, data: dict) -> None:
+    # Önce geçici dosyaya yaz, sonra tek adımda değiştir: yarıda kalan yazma eski dosyayı bozmasın
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+    tmp = path.with_suffix(".tmp")
+    tmp.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+    os.replace(tmp, path)
+
+
+def _merge(default: dict, data) -> dict:
+    """Saklanan değeri yalnızca türü varsayılanla uyuşuyorsa al (bozuk/eski dosyalar açılışı engellemesin)."""
+    out = dict(default)
+    if isinstance(data, dict):
+        for k, v in data.items():
+            if k in default and (isinstance(v, type(default[k])) or (isinstance(default[k], float) and isinstance(v, int))):
+                out[k] = v
+    return out
 
 
 def load_settings() -> dict:
-    return {**DEFAULT_SETTINGS, **(_read(home() / "settings.json") or {})}
+    return _merge(DEFAULT_SETTINGS, _read(home() / "settings.json"))
 
 
 def save_settings(s: dict) -> None:
@@ -45,12 +58,17 @@ def save_settings(s: dict) -> None:
 
 
 def load_profile(name: str) -> dict:
-    p = default_profile(name)
     data = _read(_path(name))
-    if isinstance(data, dict):
-        p.update({k: v for k, v in data.items() if k != "style"})
-        p["style"].update(data.get("style") or {})
-        p["name"] = name
+    data = data if isinstance(data, dict) else {}
+    p = _merge(default_profile(name), data)
+    p["name"] = name
+    p["style"] = _merge(DEFAULT_STYLE, data.get("style"))
+    r = p["region"]
+    if len(r) != 4 or not all(isinstance(v, (int, float)) for v in r):
+        p["region"] = default_profile(name)["region"]
+    p["glossary"] = {k: v for k, v in p["glossary"].items() if isinstance(v, str)}
+    p["speakers"] = {k: {"color": v.get("color") if isinstance(v.get("color"), str) else None, "voice": v.get("voice")}
+                     for k, v in p["speakers"].items() if isinstance(v, dict)}
     return p
 
 

@@ -27,7 +27,21 @@ WEB_DIR = Path(getattr(sys, "_MEIPASS", Path(__file__).resolve().parent.parent))
 
 
 def _is_local(ws) -> bool:
-    return ws.remote_address[0] in ("127.0.0.1", "::1")
+    # IP yetmez: bilgisayardaki herhangi bir web sitesi de 127.0.0.1'e bağlanabilir. Origin de bizim olmalı
+    # (tarayıcı dışı istemciler Origin göndermez).
+    if ws.remote_address[0] not in ("127.0.0.1", "::1"):
+        return False
+    origin = ws.request.headers.get("Origin")
+    port = ws.local_address[1]
+    return origin is None or origin in (f"http://127.0.0.1:{port}", f"http://localhost:{port}")
+
+
+def static_rel(raw_path: str) -> str | None:
+    """İstek yolunu web/ altında güvenli göreli yola çevirir; disk erişimi yapmadan reddeder."""
+    rel = unquote(raw_path.split("?")[0]).lstrip("/") or "panel.html"
+    if "\\" in rel or ":" in rel or "\x00" in rel or any(part in ("", ".", "..") for part in rel.split("/")):
+        return None
+    return rel
 
 
 is_local = _is_local  # testler değiştirebilsin
@@ -72,18 +86,21 @@ class App:
 
     async def status_loop(self) -> None:
         while True:
-            self.ollama = await asyncio.to_thread(ollama_up)
-            self.models = await asyncio.to_thread(installed) if self.ollama else set()
-            self.broadcast({"type": "status", "status": self.status()})
+            try:
+                self.ollama = await asyncio.to_thread(ollama_up)
+                self.models = await asyncio.to_thread(installed) if self.ollama else set()
+                self.broadcast({"type": "status", "status": self.status()})
+            except Exception as e:  # durum döngüsü de sunucuyu öldürmesin
+                self.rt.status["error"] = f"Durum hatası: {e}"
             await asyncio.sleep(1)
 
     # --- HTTP ---
     def process_request(self, conn, req):
         if "upgrade" in req.headers.get("Connection", "").lower():
             return None
-        rel = unquote(req.path.split("?")[0]).lstrip("/") or "panel.html"
-        path = (self.web_dir / rel).resolve()
-        if not path.is_relative_to(self.web_dir) or not path.is_file():
+        rel = static_rel(req.path)
+        path = (self.web_dir / rel).resolve() if rel else None
+        if path is None or not path.is_relative_to(self.web_dir) or not path.is_file():
             return conn.respond(HTTPStatus.NOT_FOUND, "Bulunamadı\n")
         ctype = mimetypes.guess_type(path.name)[0] or "application/octet-stream"
         if ctype.startswith("text/") or ctype.endswith(("javascript", "json")):

@@ -14,6 +14,7 @@ from .speaker import split_speakers
 from .translate import translate
 
 SLOW_MS = 1000
+ERROR_PAUSE = 1.0  # beklenmedik hatadan sonra bekleme (sn)
 
 
 def stable(state: dict, text: str) -> str | None:
@@ -72,29 +73,42 @@ async def run(rt: Runtime, interval: float = 0.15) -> None:
     with mss.MSS() as sct:
         while True:
             t0 = time.perf_counter()
-            profile = rt.profile  # panel her an değiştirebilir; her karede yeniden okunur
-            rect = target_rect(profile["source"])
-            rt.status["window"] = rect is not None
-            if rect is None:
-                await asyncio.sleep(1)
+            try:
+                await _frame(rt, sct, state, tr, t0)
+            except Exception as e:  # tek bir karedeki hata döngüyü (ve sunucuyu) öldürmesin
+                rt.status["error"] = f"Okuma hatası: {e}"
+                await asyncio.sleep(ERROR_PAUSE)
                 continue
-            shot = grab(sct, to_pixels(profile["region"], rect))
-            t1 = time.perf_counter()
-            text = await ocr(rt.engine, shot)
-            t2 = time.perf_counter()
-            line = stable(state, text)
-            if line is not None:
-                lines, changed = await asyncio.to_thread(build_lines, line, profile, tr)
-                t3 = time.perf_counter()
-                rt.last_lines = lines
-                rt.emit({"type": "lines", "lines": lines})
-                if changed and rt.profile is profile:  # panel bu arada profili değiştirdiyse eskisini yazma
-                    store.save_profile(profile)
-                if line:
-                    total = round(1000 * (t3 - t0))
-                    rt.timings.append(total)
-                    avg = round(sum(rt.timings) / len(rt.timings))
-                    rt.status.update(last={"capture": round(1000 * (t1 - t0)), "ocr": round(1000 * (t2 - t1)),
-                                           "translate": round(1000 * (t3 - t2))},
-                                     avgMs=avg, slow=avg > SLOW_MS, lastLine={"en": line, "lines": lines})
             await asyncio.sleep(max(0, interval - (time.perf_counter() - t0)))
+
+
+async def _frame(rt: Runtime, sct, state: dict, tr, t0: float) -> None:
+    profile = rt.profile  # panel her an değiştirebilir; her karede yeniden okunur
+    rect = target_rect(profile["source"])
+    rt.status["window"] = rect is not None
+    if rect is None:
+        if rt.last_lines:  # pencere kapandı/küçüldü: eski altyazı TV'de asılı kalmasın
+            rt.last_lines = []
+            rt.emit({"type": "lines", "lines": []})
+        state.update(prev=None, sent="")
+        await asyncio.sleep(1)
+        return
+    shot = grab(sct, to_pixels(profile["region"], rect))
+    t1 = time.perf_counter()
+    text = await ocr(rt.engine, shot)
+    t2 = time.perf_counter()
+    line = stable(state, text)
+    if line is None:
+        return
+    lines, changed = await asyncio.to_thread(build_lines, line, profile, tr)
+    t3 = time.perf_counter()
+    rt.last_lines = lines
+    rt.emit({"type": "lines", "lines": lines})
+    if changed and rt.profile is profile:  # panel bu arada profili değiştirdiyse eskisini yazma
+        store.save_profile(profile)
+    if line:
+        rt.timings.append(round(1000 * (t3 - t0)))
+        avg = round(sum(rt.timings) / len(rt.timings))
+        rt.status.update(last={"capture": round(1000 * (t1 - t0)), "ocr": round(1000 * (t2 - t1)),
+                               "translate": round(1000 * (t3 - t2))},
+                         avgMs=avg, slow=avg > SLOW_MS, lastLine={"en": line, "lines": lines})

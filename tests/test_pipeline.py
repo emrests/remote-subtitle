@@ -66,3 +66,42 @@ def test_run_emits_translated_lines(monkeypatch):
         pass
     assert sent == [{"type": "lines", "lines": [{"speaker": "Arthur", "color": "#ff0000", "en": "Hi.", "tr": "Selam."}]}]
     assert rt.status["window"] is True and rt.status["last"]["translate"] >= 0 and rt.status["error"] is None
+
+
+def test_run_survives_unexpected_error(monkeypatch):
+    calls = {"n": 0}
+    def flaky(sct, box):
+        calls["n"] += 1
+        if calls["n"] == 1:
+            raise RuntimeError("boom")
+    monkeypatch.setattr(pipeline, "target_rect", lambda src: (0, 0, 10, 10))
+    monkeypatch.setattr(pipeline, "grab", flaky)
+    async def fake_ocr(engine, shot):
+        return "Hi."
+    monkeypatch.setattr(pipeline, "ocr", fake_ocr)
+    monkeypatch.setattr(pipeline, "translate", lambda *a: "Selam.")
+    monkeypatch.setattr(pipeline, "ERROR_PAUSE", 0.05)
+    sent = []
+    rt = Runtime(settings={"model": "m"}, profile=copy.deepcopy(P), emit=sent.append)
+    try:
+        asyncio.run(asyncio.wait_for(run(rt, interval=0.01), 0.6))
+    except TimeoutError:
+        pass
+    assert sent and sent[0]["lines"][0]["tr"] == "Selam."
+
+
+def test_lost_window_clears_subtitle(monkeypatch):
+    rects = iter([(0, 0, 10, 10)] * 3)
+    monkeypatch.setattr(pipeline, "target_rect", lambda src: next(rects, None))
+    monkeypatch.setattr(pipeline, "grab", lambda sct, box: None)
+    async def fake_ocr(engine, shot):
+        return "Hi."
+    monkeypatch.setattr(pipeline, "ocr", fake_ocr)
+    monkeypatch.setattr(pipeline, "translate", lambda *a: "Selam.")
+    sent = []
+    rt = Runtime(settings={"model": "m"}, profile=copy.deepcopy(P), emit=sent.append)
+    try:
+        asyncio.run(asyncio.wait_for(run(rt, interval=0.01), 1.5))
+    except TimeoutError:
+        pass
+    assert [m["lines"] for m in sent][-1] == [] and rt.last_lines == []

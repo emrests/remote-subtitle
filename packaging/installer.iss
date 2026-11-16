@@ -46,7 +46,7 @@ Filename: "{tmp}\OllamaSetup.exe"; Parameters: "/VERYSILENT /NORESTART /SUPPRESS
 Filename: "powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -Command ""Add-WindowsCapability -Online -Name 'Language.OCR~~~en-US~0.0.1.0'"""; \
   StatusMsg: "İngilizce metin tanıma paketi yükleniyor..."; Flags: runhidden waituntilterminated
 ; 3) TV'nin bağlanabilmesi için güvenlik duvarı kuralı (yalnızca özel ağ)
-Filename: "netsh.exe"; Parameters: "advfirewall firewall add rule name=""{#AppName}"" dir=in action=allow protocol=TCP localport={#Port} profile=private"; \
+Filename: "netsh.exe"; Parameters: "advfirewall firewall add rule name=""{#AppName}"" dir=in action=allow protocol=TCP localport={#Port} profile=private,public"; \
   StatusMsg: "Güvenlik duvarı izni ekleniyor..."; Flags: runhidden waituntilterminated
 ; Son sayfa
 Filename: "https://github.com/chiaki-ng/chiaki-ng/releases"; Description: "chiaki-ng'yi (Remote Play) indirme sayfasını aç"; \

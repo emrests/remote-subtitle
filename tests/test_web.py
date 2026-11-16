@@ -108,3 +108,35 @@ async def test_unknown_path_404(app, port):
     assert (await asyncio.to_thread(_get, port, "/../rsub/store.py"))[0] == 404
     assert (await asyncio.to_thread(_get, port, "/%2e%2e/rsub/store.py"))[0] == 404
     assert (await asyncio.to_thread(_get, port, "/nope.html"))[0] == 404
+
+
+@with_app
+async def test_foreign_origin_forbidden(app, port):
+    async with connect(f"ws://127.0.0.1:{port}", origin="http://evil.example") as ws:
+        r = await _cmd(ws, cmd="snapshot", source="monitor:1")
+        assert r["ok"] is False and r["error"] == "forbidden"
+
+
+@with_app
+async def test_own_origin_allowed(app, port):
+    async with connect(f"ws://127.0.0.1:{port}", origin=f"http://127.0.0.1:{port}") as ws:
+        assert (await _cmd(ws, cmd="get_state"))["ok"]
+
+
+@with_app
+async def test_unc_and_nul_paths_404(app, port):
+    import time
+    t = time.perf_counter()
+    assert (await asyncio.to_thread(_get, port, "/%5C%5Cevil.invalid%5Cshare%5Ca"))[0] == 404
+    assert (await asyncio.to_thread(_get, port, "/C:%5CWindows%5Cwin.ini"))[0] == 404
+    assert (await asyncio.to_thread(_get, port, "/a%00b"))[0] == 404
+    assert time.perf_counter() - t < 2
+
+
+def test_static_rel_rejects_without_touching_disk():
+    assert web.static_rel("/%5C%5Cevil%5Cshare%5Ca") is None
+    assert web.static_rel("/C:%5CWindows%5Cwin.ini") is None
+    assert web.static_rel("/a%00b") is None
+    assert web.static_rel("/../rsub/store.py") is None
+    assert web.static_rel("/") == "panel.html"
+    assert web.static_rel("/display.html?bg=x") == "display.html"

@@ -32,3 +32,9 @@ def test_not_speakers():
 
 def test_empty():
     assert split_speakers("") == []
+
+
+def test_game_labels_are_not_speakers():
+    for s in ["Note: Saving is disabled.", "Objective: Find the key.", "Tip: press X", "Hint: look up"]:
+        assert split_speakers(s) == [(None, s)]
+    assert split_speakers("Arthur: Go. Time: 10:30") == [("Arthur", "Go. Time: 10:30")]

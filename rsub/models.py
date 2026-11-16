@@ -44,14 +44,14 @@ def ollama_up() -> bool:
     try:
         _get("/api/version", 1)
         return True
-    except OSError:
+    except Exception:  # 11434'te başka bir şey dinliyorsa da "Ollama yok" say
         return False
 
 
 def installed() -> set[str]:
     try:
         return {m["name"] for m in _get("/api/tags", 3)["models"]}
-    except OSError:
+    except Exception:
         return set()
 
 

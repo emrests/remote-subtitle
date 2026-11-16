@@ -12,3 +12,12 @@ def test_model_infos_marks_fit():
     infos = model_infos(16303)
     assert [i["fits"] for i in infos] == [False, True, True, True]
     assert [i["id"] for i in infos if i["recommended"]] == ["translategemma:12b"]
+
+
+def test_ollama_up_survives_non_ollama_server(monkeypatch):
+    import http.client
+    from rsub import models
+    def bad(path, timeout):
+        raise http.client.BadStatusLine("x")
+    monkeypatch.setattr(models, "_get", bad)
+    assert models.ollama_up() is False and models.installed() == set()

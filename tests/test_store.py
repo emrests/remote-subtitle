@@ -41,3 +41,31 @@ def test_copy_and_delete():
 def test_settings_roundtrip():
     store.save_settings({"profile": "RDR2", "model": "gemma3:12b", "chiakiPath": "C:/x.exe"})
     assert store.load_settings()["model"] == "gemma3:12b"
+
+
+def test_wrong_types_fall_back_to_defaults():
+    (store.home() / "profiles").mkdir(parents=True)
+    store._path("X").write_text('{"name":"X","style":"x","region":[0,0],"speakers":{"Arthur":"#f00","Sadie":{}},'
+                                '"glossary":[1]}', encoding="utf-8")
+    p = store.load_profile("X")
+    assert p["style"] == store.DEFAULT_STYLE and p["region"] == [0.0, 0.7, 1.0, 0.3] and p["glossary"] == {}
+    assert p["speakers"] == {"Sadie": {"color": None, "voice": None}}
+
+
+def test_settings_wrong_type_falls_back():
+    store.home().mkdir(parents=True, exist_ok=True)
+    (store.home() / "settings.json").write_text("[1,2]", encoding="utf-8")
+    assert store.load_settings()["model"] == "translategemma:12b"
+
+
+def test_failed_write_keeps_old_file(monkeypatch):
+    store.save_profile(store.default_profile("A"))
+    def boom(*a):
+        raise OSError("disk full")
+    monkeypatch.setattr(store.os, "replace", boom)
+    p = store.default_profile("A"); p["glossary"] = {"x": "y"}
+    try:
+        store.save_profile(p)
+    except OSError:
+        pass
+    assert store.load_profile("A")["glossary"] == {} and store.list_profiles() == ["A"]
