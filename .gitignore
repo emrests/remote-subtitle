@@ -5,3 +5,4 @@ build/
 dist/
 packaging/vendor/
 packaging/Output/
+.playwright-mcp/

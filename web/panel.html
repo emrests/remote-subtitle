@@ -1,0 +1,181 @@
+<!doctype html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<title>remote-subtitle</title>
+<link rel="icon" href="icon.png">
+<link rel="stylesheet" href="subtitle.css">
+<link rel="stylesheet" href="panel.css">
+</head>
+<body>
+<header class="topbar">
+  <div class="brand"><span class="brand-mark" aria-hidden="true"></span>remote-subtitle</div>
+  <div class="profile-switch">
+    <label for="profile" class="muted">Oyun</label>
+    <select id="profile"></select>
+    <span id="profile-actions" class="inline-form">
+      <button class="btn" id="btn-new">Yeni</button>
+      <button class="btn" id="btn-copy">Kopyala</button>
+      <button class="btn danger" id="btn-del">Sil</button>
+    </span>
+    <span id="profile-name-form" class="inline-form" hidden>
+      <input type="text" id="profile-name" placeholder="Oyun adı" aria-label="Yeni profil adı">
+      <button class="btn primary" id="btn-name-ok">Oluştur</button>
+      <button class="btn ghost" id="btn-name-cancel">Vazgeç</button>
+    </span>
+  </div>
+  <div class="chips" id="chips"></div>
+</header>
+
+<div class="body">
+  <nav aria-label="Bölümler">
+    <button data-tab="source" aria-current="page">Kaynak ve bölge</button>
+    <button data-tab="style">Görünüm</button>
+    <button data-tab="glossary">Terimler</button>
+    <button data-tab="chars">Karakterler</button>
+    <button data-tab="model">Çeviri modeli</button>
+    <button data-tab="conn">Bağlantı</button>
+    <p class="hint">Pencereyi kapatınca uygulama sistem tepsisinde çalışmaya devam eder.</p>
+  </nav>
+
+  <main>
+    <!-- Kaynak ve bölge -->
+    <section id="tab-source">
+      <header>
+        <div>
+          <h2>Kaynak ve bölge</h2>
+          <p class="muted">Altyazının okunacağı pencereyi seçin, ardından görüntü üzerinde altyazının çıktığı alanı fareyle çizin. Pencere taşınsa ya da boyutu değişse de bölge onunla birlikte gider.</p>
+        </div>
+      </header>
+      <div class="stack">
+        <div class="source-row">
+          <select id="source" aria-label="Kaynak"></select>
+          <button class="btn" id="btn-sources">Listeyi yenile</button>
+          <button class="btn primary" id="btn-snap">Görüntü al</button>
+        </div>
+        <div class="shot-wrap" id="shot">
+          <div class="shot-empty" id="shot-empty">Kaynaktan bir görüntü alın. Evde chiaki-ng, işte ikinci ekrandaki YouTube penceresini seçebilirsiniz.</div>
+          <img id="shot-img" alt="" hidden>
+          <div class="region" id="region" hidden><span>Altyazı bölgesi</span></div>
+        </div>
+        <p class="muted" id="region-info"></p>
+      </div>
+    </section>
+
+    <!-- Görünüm -->
+    <section id="tab-style" hidden>
+      <header>
+        <div>
+          <h2>Görünüm</h2>
+          <p class="muted">Önizleme, TV'de göreceğinizle birebir aynıdır. Değişiklikler bağlı ekranlara anında gider.</p>
+        </div>
+      </header>
+      <div class="style-layout">
+        <div class="tv">
+          <div class="tv-screen" id="tv-screen">
+            <div class="tv-stage" id="tv-stage">
+              <div class="scene" id="scene"></div>
+              <div class="sub-layer sub-bottom" id="preview"></div>
+            </div>
+          </div>
+        </div>
+        <div class="panel style-form">
+          <div class="field"><label for="st-font">Yazı tipi</label><select id="st-font"></select></div>
+          <div class="field"><label for="st-pos">Konum</label>
+            <div class="segmented" id="st-pos" role="group" aria-label="Konum">
+              <button type="button" data-v="bottom">Altta</button><button type="button" data-v="top">Üstte</button>
+            </div>
+          </div>
+          <div class="field"><label for="st-size">Yazı boyutu</label>
+            <div class="row"><input type="range" id="st-size" min="24" max="96" step="2"><output for="st-size" id="o-size"></output></div></div>
+          <div class="field"><label for="st-offset">Kenara uzaklık</label>
+            <div class="row"><input type="range" id="st-offset" min="0" max="400" step="10"><output for="st-offset" id="o-offset"></output></div></div>
+          <div class="field"><label for="st-color">Yazı rengi</label><div class="row"><input type="color" id="st-color"></div></div>
+          <div class="field"><label for="st-name">İsim rengi</label><div class="row"><input type="color" id="st-name"><span class="muted">Karaktere özel renk yoksa</span></div></div>
+          <div class="field"><label for="st-bg">Arka plan</label><div class="row"><input type="color" id="st-bg"></div></div>
+          <div class="field"><label for="st-op">Arka plan saydamlığı</label>
+            <div class="row"><input type="range" id="st-op" min="0" max="1" step="0.05"><output for="st-op" id="o-op"></output></div></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Terimler -->
+    <section id="tab-glossary" hidden>
+      <header>
+        <div>
+          <h2>Terimler</h2>
+          <p class="muted">Bu oyuna özel isim ve terimler her zaman burada yazdığınız gibi çevrilir. Çevrilmemesini istediğiniz bir ismi iki sütuna da aynı yazın.</p>
+        </div>
+        <button class="btn primary" id="btn-term-add">Terim ekle</button>
+      </header>
+      <div class="panel">
+        <table id="glossary">
+          <thead><tr><th>İngilizce</th><th>Türkçe</th><th></th></tr></thead>
+          <tbody></tbody>
+        </table>
+        <div class="empty" id="glossary-empty">Henüz terim yok. Örneğin <b>Dead Eye</b> → <b>Ölü Göz</b> ya da <b>Valentine</b> → <b>Valentine</b>.</div>
+      </div>
+    </section>
+
+    <!-- Karakterler -->
+    <section id="tab-chars" hidden>
+      <header>
+        <div>
+          <h2>Karakterler</h2>
+          <p class="muted">Altyazıda "Arthur: …" gibi bir satır görüldüğünde konuşan karakter buraya kendiliğinden eklenir. Her karaktere ayrı isim rengi verebilirsiniz.</p>
+        </div>
+      </header>
+      <div class="panel">
+        <table id="chars">
+          <thead><tr><th>Karakter</th><th>İsim rengi</th><th>Ses</th><th></th></tr></thead>
+          <tbody></tbody>
+        </table>
+        <div class="empty" id="chars-empty">Henüz karakter görülmedi. Oyunda konuşmacı adıyla bir altyazı çıktığında burada listelenir.</div>
+      </div>
+    </section>
+
+    <!-- Çeviri modeli -->
+    <section id="tab-model" hidden>
+      <header>
+        <div>
+          <h2>Çeviri modeli</h2>
+          <p class="muted" id="vram-info">Modeller iyiden hızlıya sıralıdır. Büyük model daha doğru çevirir ama her satırı daha geç gösterir.</p>
+        </div>
+      </header>
+      <div class="models" id="models"></div>
+    </section>
+
+    <!-- Bağlantı -->
+    <section id="tab-conn" hidden>
+      <header>
+        <div>
+          <h2>Bağlantı</h2>
+          <p class="muted">TV uygulamasında ya da ikinci ekrandaki tarayıcıda bu adresi açın.</p>
+        </div>
+      </header>
+      <div class="stack">
+        <div class="panel stack">
+          <div class="address"><code id="tv-url"></code><button class="btn" id="btn-copy-url">Kopyala</button><button class="btn" id="btn-open-display">Bu bilgisayarda aç</button></div>
+          <p class="muted" id="clients-info"></p>
+        </div>
+        <div class="panel stack">
+          <h3>Remote Play (chiaki-ng)</h3>
+          <div class="field"><label for="chiaki-path">Program yolu</label>
+            <div class="row"><input type="text" id="chiaki-path" placeholder="C:\Program Files\chiaki-ng\chiaki.exe" style="flex:1"><button class="btn" id="btn-chiaki">Başlat</button></div></div>
+          <p class="muted">chiaki-ng penceresini ikinci ekranda açık bırakın; küçültülmüş ya da başka bir pencerenin altında kalmış pencere okunamaz. Sesini kapatın, ses zaten TV'den gelir.</p>
+        </div>
+      </div>
+    </section>
+  </main>
+</div>
+
+<footer class="footer">
+  <div class="line" id="last-line"><span class="muted">Henüz altyazı okunmadı.</span></div>
+  <div class="times" id="times"></div>
+</footer>
+<div class="toast" id="toast" role="status"></div>
+
+<script src="subtitle.js"></script>
+<script src="panel.js"></script>
+</body>
+</html>
