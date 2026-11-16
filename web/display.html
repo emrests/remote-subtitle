@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=1920">
+<title>Altyazı</title>
+<link rel="stylesheet" href="subtitle.css">
+<style>
+  html, body { margin: 0; width: 1920px; height: 1080px; background: #000; overflow: hidden; }
+  /* TV'de burası HDMI penceresi (TVWindow) olacak; işte arkaya video koymak için ?bg=URL */
+  #bg { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; }
+  #status { position: absolute; right: 16px; bottom: 12px; color: #888; font: 20px "Segoe UI", sans-serif; }
+</style>
+</head>
+<body>
+<video id="bg" autoplay muted loop playsinline></video>
+<div id="sub" class="sub-layer sub-bottom"></div>
+<div id="status">Bağlanıyor…</div>
+<script src="subtitle.js"></script>
+<script>
+  var q = new URLSearchParams(location.search);
+  var host = q.get("host") || location.host || "localhost:8765";
+  if (host.indexOf(":") < 0) host += ":8765";
+  if (q.get("bg")) document.getElementById("bg").src = q.get("bg");
+  var sub = document.getElementById("sub"), statusEl = document.getElementById("status");
+  var style = null, lines = [];
+  connectSubtitles("ws://" + host, function (msg) {
+    if (msg.type === "style") { style = msg.style; renderSubtitle(sub, lines, style); }
+    if (msg.type === "lines") { lines = msg.lines; renderSubtitle(sub, lines, style); }
+  }, function (up) { statusEl.textContent = up ? "" : "Bağlantı yok, yeniden deneniyor…"; });
+</script>
+</body>
+</html>
