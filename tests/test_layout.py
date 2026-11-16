@@ -62,3 +62,32 @@ def test_render_name_has_speaker_color():
 
 def test_render_nothing_for_empty():
     assert render([], STYLE, 900, 120, scale=1.0) is None
+
+
+def test_pill_hugs_text_at_english_position():
+    from rsub.layout import pill
+    anchor = (700, 40, 180, 50)  # İngilizce "Help me!" bölgede burada
+    (x, y, w, h), _ = pill(LINE, STYLE, 1600, 400, 1.0, anchor)
+    assert w < 1000 and h < 200  # bölgenin tamamı değil
+    assert x <= 700 and x + w >= 880 and y <= 40 and y + h >= 90  # İngilizceyi tamamen kapatır
+    assert abs((x + w / 2) - 790) <= 2 and abs((y + h / 2) - 65) <= 2  # aynı yerde ortalı
+    assert x >= 0 and y >= 0 and x + w <= 1600 and y + h <= 400
+
+
+def test_pill_without_anchor_centers_in_region():
+    from rsub.layout import pill
+    (x, y, w, h), _ = pill(LINE, STYLE, 1600, 400, 1.0, None)
+    assert abs((x + w / 2) - 800) <= 2 and abs((y + h / 2) - 200) <= 2 and w < 1600
+
+
+def test_pill_clamped_inside_region():
+    from rsub.layout import pill
+    (x, y, w, h), _ = pill(LONG, STYLE, 1600, 400, 1.0, (0, 0, 60, 30))
+    assert x >= 0 and y >= 0 and x + w <= 1600 and y + h <= 400
+
+
+def test_render_with_fitted_pill_keeps_rows():
+    from rsub.layout import pill
+    (x, y, w, h), fitted = pill(LONG, STYLE, 1600, 400, 1.0, None)
+    img = render(LONG, STYLE, w, h, 1.0, fitted=fitted)
+    assert img.size == (w, h)

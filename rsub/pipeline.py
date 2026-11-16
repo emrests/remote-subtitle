@@ -57,6 +57,7 @@ class Runtime:
     timings: deque = field(default_factory=lambda: deque(maxlen=10))
     last_lines: list = field(default_factory=list)
     model_ready: bool = True  # App, Ollama'da model kurulu mu diye günceller
+    text_box: tuple | None = None  # gösterilen İngilizce satırın bölgedeki konumu (OCR'dan)
     on_frame: Callable | None = None  # her karede kaynak dikdörtgeniyle (ya da None) çağrılır: katman konumu
     status: dict = field(default_factory=lambda: {"window": False, "last": None, "avgMs": None,
                                                   "slow": False, "error": None, "running": True})
@@ -90,6 +91,7 @@ async def run(rt: Runtime, interval: float = 0.15) -> None:
 
 
 def _clear(rt: Runtime, state: dict) -> None:
+    rt.text_box = None
     if rt.last_lines:  # eski altyazı TV'de asılı kalmasın
         rt.last_lines = []
         rt.emit({"type": "lines", "lines": []})
@@ -127,6 +129,7 @@ async def _frame(rt: Runtime, sct, state: dict, tr, t0: float) -> None:
     lines, new = await asyncio.to_thread(build_lines, line, profile, tr)
     t3 = time.perf_counter()
     rt.last_lines = lines
+    rt.text_box = getattr(line, "box", None)
     rt.emit({"type": "lines", "lines": lines})
     if rt.on_frame:
         rt.on_frame(rect, region_img)

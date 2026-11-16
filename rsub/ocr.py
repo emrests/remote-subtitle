@@ -31,9 +31,20 @@ def make_ocr():
     return OcrEngine.try_create_from_language(Language(lang)) if lang else None
 
 
-async def ocr(engine, shot) -> str:
+class OcrText(str):
+    """Okunan metin; .box = metnin görüntüdeki kapsayıcı dikdörtgeni (x, y, w, h) ya da None."""
+    box: tuple | None = None
+
+
+async def ocr(engine, shot) -> OcrText:
     w = DataWriter()
     w.write_bytes(shot.bgra)
     bmp = SoftwareBitmap.create_copy_from_buffer(w.detach_buffer(), BitmapPixelFormat.BGRA8, shot.width, shot.height)
     result = await engine.recognize_async(bmp)
-    return " ".join(line.text for line in result.lines).strip()
+    out = OcrText(" ".join(line.text for line in result.lines).strip())
+    rects = [wd.bounding_rect for line in result.lines for wd in line.words]
+    if rects:
+        x0, y0 = min(r.x for r in rects), min(r.y for r in rects)
+        x1, y1 = max(r.x + r.width for r in rects), max(r.y + r.height for r in rects)
+        out.box = (round(x0), round(y0), round(x1 - x0), round(y1 - y0))
+    return out

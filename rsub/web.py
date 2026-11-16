@@ -99,14 +99,17 @@ class App:
                 self.overlay.hide()
                 self._overlay_key = None
             return
-        box = capture.to_pixels(self.rt.profile["region"], rect)
+        region = capture.to_pixels(self.rt.profile["region"], rect)
         style = self.rt.profile["style"]
+        scale = rect[3] / 1080
         blurred = backdrop is not None and style.get("blur", 0) > 0
-        key = (tuple(box.values()), json.dumps(lines, sort_keys=True), json.dumps(style, sort_keys=True))
+        key = (tuple(region.values()), self.rt.text_box, json.dumps(lines, sort_keys=True), json.dumps(style, sort_keys=True))
         if key == self._overlay_key and not blurred:  # bulanık zeminde arka plan her karede değişir
             return
-        img = layout.render(lines, style, box["width"], box["height"], scale=rect[3] / 1080,
-                            backdrop=backdrop if blurred else None)
+        (x, y, w, h), fitted = layout.pill(lines, style, region["width"], region["height"], scale, self.rt.text_box)
+        box = {"left": region["left"] + x, "top": region["top"] + y, "width": w, "height": h}
+        img = layout.render(lines, style, w, h, scale, backdrop=backdrop.crop((x, y, x + w, y + h)) if blurred else None,
+                            fitted=fitted)
         if img is None:
             self.overlay.hide()
         else:

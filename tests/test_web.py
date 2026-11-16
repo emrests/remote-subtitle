@@ -201,10 +201,13 @@ def _overlay_app():
     return a
 
 
-def test_overlay_covers_region_of_window():
-    a = _overlay_app()
+def test_overlay_centered_in_region_without_text_box():
+    a = _overlay_app()  # bölge pencerede (580, 860, 960, 108)
     a.sync_overlay((100, 50, 1920, 1080))
-    assert a.overlay.shown == [({"left": 580, "top": 860, "width": 960, "height": 108}, (960, 108))]
+    box, size = a.overlay.shown[0]
+    assert size == (box["width"], box["height"]) and box["width"] < 960
+    assert 580 <= box["left"] and box["left"] + box["width"] <= 1540 and 860 <= box["top"] and box["top"] + box["height"] <= 968
+    assert abs(box["left"] + box["width"] / 2 - 1060) <= 2
     a.sync_overlay((100, 50, 1920, 1080))  # değişiklik yoksa yeniden çizme
     assert len(a.overlay.shown) == 1
 
@@ -232,3 +235,12 @@ def test_overlay_rerenders_each_frame_when_blurred():
     a.sync_overlay((0, 0, 1920, 1080), Image.new("RGB", (960, 108), "red"))
     a.sync_overlay((0, 0, 1920, 1080), Image.new("RGB", (960, 108), "blue"))
     assert len(a.overlay.shown) == 2  # arka plan değişti → yeniden çiz
+
+
+def test_overlay_pill_follows_english_box():
+    a = _overlay_app()  # bölge: [0.25, 0.75, 0.5, 0.1] → 1920x1080'de (480, 810, 960, 108)
+    a.rt.text_box = (380, 20, 200, 60)  # bölgeye göre
+    a.sync_overlay((0, 0, 1920, 1080))
+    box, size = a.overlay.shown[-1]
+    assert box["width"] < 960 and size == (box["width"], box["height"])
+    assert abs(box["left"] + box["width"] / 2 - (480 + 480)) <= 2  # İngilizcenin merkezinde

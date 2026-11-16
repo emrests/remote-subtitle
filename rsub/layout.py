@@ -94,7 +94,31 @@ def _frosted(backdrop, w: int, h: int, radius: float):
     return small.resize((w, h), Image.BILINEAR).convert("RGBA")
 
 
-def render(lines: list[dict], style: dict, w: int, h: int, scale: float, backdrop=None):
+def pill(lines: list[dict], style: dict, region_w: int, region_h: int, scale: float, anchor):
+    """Çevirinin kutusu: yazıya göre boyutlanır, İngilizce altyazının (anchor, bölgeye göre x,y,w,h) merkezine
+    oturur ve onu tamamen kapatır; bölge dışına taşmaz. ((x, y, w, h), (px, satırlar)) döner."""
+    px = max(MIN_PX, round(style["size"] * scale))
+    while True:
+        padx, pady = round(px * 0.6), round(px * 0.3)
+        rows = _rows(lines, style, px, max(1, region_w - 2 * padx))
+        w = max((r["width"] for r in rows), default=0) + 2 * padx
+        h = sum(r["height"] for r in rows) + 2 * pady
+        if (w <= region_w and h <= region_h) or px <= MIN_PX:
+            break
+        px = max(MIN_PX, int(px * 0.9))
+    if anchor:
+        ax, ay, aw, ah = anchor
+        w, h = max(w, aw + 2 * round(px * 0.3)), max(h, ah + 2 * round(px * 0.2))
+        cx, cy = ax + aw / 2, ay + ah / 2
+    else:
+        cx, cy = region_w / 2, region_h / 2
+    w, h = min(w, region_w), min(h, region_h)
+    x = min(max(0, round(cx - w / 2)), region_w - w)
+    y = min(max(0, round(cy - h / 2)), region_h - h)
+    return (x, y, w, h), (px, rows)
+
+
+def render(lines: list[dict], style: dict, w: int, h: int, scale: float, backdrop=None, fitted=None):
     lines = [l for l in lines if l.get("tr")]
     if not lines or w < 4 or h < 4:
         return None
@@ -105,14 +129,16 @@ def render(lines: list[dict], style: dict, w: int, h: int, scale: float, backdro
     else:
         img = Image.new("RGBA", (w, h), _rgba(style["bg"], style["bgOpacity"]))
     mask = Image.new("L", (w, h), 0)  # yuvarlak köşeler
-    ImageDraw.Draw(mask).rounded_rectangle([0, 0, w - 1, h - 1], radius=max(4, min(h // 3, round(18 * scale))), fill=255)
+    ImageDraw.Draw(mask).rounded_rectangle([0, 0, w - 1, h - 1], radius=max(4, min(h // 2, round(18 * scale))), fill=255)
     img.putalpha(Image.composite(img.getchannel("A"), mask, mask))
     draw = ImageDraw.Draw(img)
-    _, rows = fit(lines, style, w, h, scale)
+    _, rows = fitted or fit(lines, style, w, h, scale)
+    shadow = max(1, round(2 * scale))
     y = (h - sum(r["height"] for r in rows)) // 2
     for r in rows:
         x = (w - r["width"]) // 2
         for text, color, font in r["parts"]:
+            draw.text((x + shadow, y + shadow), text, font=font, fill=(0, 0, 0, 150))  # açık sahnede okunurluk
             draw.text((x, y), text, font=font, fill=_rgba(color, 1.0))
             x += font.getlength(text + " ")
         y += r["height"]
