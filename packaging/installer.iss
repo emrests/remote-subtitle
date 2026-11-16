@@ -69,16 +69,49 @@ begin
     'Ollama bu bilgisayarda yok; indirilip kurulacak (yaklaşık 1,9 GB).', nil);
 end;
 
+{ OllamaSetup.exe (~1,9 GB) her kurulumda yeniden inmesin: setup'ın yanındaki ya da önbellekteki kopya kullanılır,
+  indirilen kopya önbelleğe alınır. Önbellek kaldırmada silinmez (kaldırıp yeniden kurunca da işe yarasın). }
+function CacheFile: String;
+begin
+  Result := ExpandConstant('{commonappdata}\remote-subtitle\OllamaSetup.exe');
+end;
+
+function UsableInstaller(const Path: String): Boolean;
+var
+  Size: Int64;
+begin
+  Result := FileExists(Path) and FileSize64(Path, Size) and (Size > 100 * 1024 * 1024);
+end;
+
+function CopyFromLocal: Boolean;
+var
+  Source: String;
+begin
+  Result := False;
+  Source := ExpandConstant('{src}\OllamaSetup.exe');
+  if not UsableInstaller(Source) then
+    Source := CacheFile;
+  if UsableInstaller(Source) then
+    Result := CopyFile(Source, ExpandConstant('{tmp}\OllamaSetup.exe'), False);
+end;
+
+procedure SaveToCache;
+begin
+  ForceDirectories(ExtractFileDir(CacheFile));
+  CopyFile(ExpandConstant('{tmp}\OllamaSetup.exe'), CacheFile, False);
+end;
+
 function NextButtonClick(CurPageID: Integer): Boolean;
 begin
   Result := True;
-  if (CurPageID = wpReady) and not OllamaInstalled then begin
+  if (CurPageID = wpReady) and not OllamaInstalled and not CopyFromLocal then begin
     DownloadPage.Clear;
     DownloadPage.Add('https://ollama.com/download/OllamaSetup.exe', 'OllamaSetup.exe', '');
     DownloadPage.Show;
     try
       try
         DownloadPage.Download;
+        SaveToCache;
       except
         if DownloadPage.AbortedByUser then
           Result := False
