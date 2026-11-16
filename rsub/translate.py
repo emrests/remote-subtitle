@@ -2,7 +2,8 @@
 import json
 import urllib.request
 
-OLLAMA = "http://localhost:11434"
+# "localhost" değil: Windows önce ::1'i dener, Ollama yalnız 127.0.0.1'de dinler → istek başına ~2 sn kayıp
+OLLAMA = "http://127.0.0.1:11434"
 PROMPT = (
     "You are a professional English (en) to Turkish (tr) translator. Your goal is to accurately "
     "convey the meaning and nuances of the original English text while adhering to Turkish grammar, "

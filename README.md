@@ -21,4 +21,5 @@ Ayarlar ve profiller: `%APPDATA%\remote-subtitle\`.
 ## Ölçülen gecikme (2026-11-16, ikinci ekranda RDR2 oynanış videosu, 2560×1600)
 
 - Yakalama: 4–14 ms, OCR (Windows, İngilizce paket olmadan): ortalama 4 ms / kare. 9 satırdan 8'i doğru okundu ("big fella" → "big fener").
-- Çeviri: henüz ölçülmedi (Ollama kurulu değildi).
+- Çeviri (TranslateGemma 12B, RTX 5080 Laptop, tamamı VRAM'de): satır başına 225–471 ms. Ollama'nın kendi süresi ~250 ms;
+  `localhost` yerine `127.0.0.1` kullanmak şart (Windows önce ::1'i dener, istek başına ~2 sn kaybettiriyordu).

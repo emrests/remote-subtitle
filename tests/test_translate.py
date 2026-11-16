@@ -23,3 +23,8 @@ def test_translate_uses_cache(monkeypatch):
     assert translate("Hi.", "m", {}, cache) == "Selam."
     translate("Hi.", "m", {}, cache)
     assert len(calls) == 1
+
+
+def test_ollama_address_is_ipv4_literal():
+    # Windows'ta "localhost" önce ::1 denenir; Ollama yalnız 127.0.0.1'de dinlediğinden her istek ~2 sn gecikiyordu
+    assert translate_mod.OLLAMA == "http://127.0.0.1:11434"
