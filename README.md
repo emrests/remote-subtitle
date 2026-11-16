@@ -1,9 +1,19 @@
 # remote-subtitle
-PS5 altyazılarını yerelde Türkçeye çevirip TV'de gösterir. Görüntü PC'ye Remote Play (chiaki-ng) penceresinden gelir.
+
+PS5 oyunlarındaki İngilizce altyazıları yerelde Türkçeye çevirip TV'de gösterir. Görüntü PC'ye Remote Play (chiaki-ng) penceresinden gelir.
+
+## Geliştirme
 
 ```
 pip install -r requirements.txt
-ollama pull translategemma:12b
-python server.py --region x,y,genişlik,yükseklik   # altyazı bölgesi
+python -m rsub              # panel penceresi + sistem tepsisi
+python -m rsub --headless   # sadece sunucu (panel: http://127.0.0.1:8765/)
+python -m pytest -q
 ```
-Gösterim: `display/index.html?host=PC_IP` (işte Chrome'da, evde TV'de). Arkaya video için `&bg=video.mp4`.
+
+Gösterim (TV / ikinci ekran): `http://<PC_IP>:8765/display.html`. Arkaya video için `?bg=video.mp4`.
+
+Gerekenler: Ollama (`localhost:11434`) ve Windows İngilizce OCR paketi
+(`Add-WindowsCapability -Online -Name 'Language.OCR~~~en-US~0.0.1.0'`, yönetici). Kurulum sihirbazı bunları kendisi kurar.
+
+Ayarlar ve profiller: `%APPDATA%\remote-subtitle\`.

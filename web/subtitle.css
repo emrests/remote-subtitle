@@ -1,0 +1,21 @@
+/* Altyazı katmanı: panel önizlemesi ve gösterim sayfası paylaşır. */
+.sub-layer {
+  position: absolute; left: 0; right: 0;
+  display: flex; flex-direction: column; align-items: center; gap: 8px;
+  pointer-events: none;
+}
+.sub-layer.sub-bottom { bottom: var(--sub-offset, 60px); }
+.sub-layer.sub-top { top: var(--sub-offset, 60px); }
+.sub-line {
+  max-width: 85%;
+  padding: 0.2em 0.6em;
+  border-radius: 0.18em;
+  background: var(--sub-bg, rgba(0,0,0,.75));
+  color: var(--sub-color, #fff);
+  font-family: var(--sub-font, "Segoe UI", sans-serif);
+  font-size: var(--sub-size, 48px);
+  line-height: 1.3;
+  text-align: center;
+  text-shadow: 0 1px 2px rgba(0,0,0,.6);
+}
+.sub-name { color: var(--sub-name, #ffd166); font-weight: 600; }

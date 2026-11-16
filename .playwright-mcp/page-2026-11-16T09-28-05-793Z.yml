@@ -1,0 +1,5 @@
+- generic [active] [ref=e1]:
+  - generic:
+    - generic: "Arthur: Hazır mısın?"
+    - generic: "Sadie: Her zaman."
+  - generic [ref=e3]: Bağlanıyor…
