@@ -206,3 +206,24 @@ def test_on_frame_gets_region_image(monkeypatch):
     rt.on_frame = lambda rect, img=None: seen.append(img)
     _run_briefly(rt, 0.2)
     assert any(i is not None and i.size == (2, 1) for i in seen)
+
+
+def _feed(frames):
+    s = {"prev": None, "sent": ""}
+    return [stable(s, t) for t in frames]
+
+
+def test_stable_tolerates_I_l_jitter():
+    # gerçek RDR2 ölçümü: OCR her karede I/l arasında gidip geliyordu, satır 0,8 sn gecikiyordu
+    out = _feed(["I'm freezing.", "l'm freezing.", "I'm freezing.", "l'm freezing."])
+    assert out[1] is not None and out[2:] == [None, None]
+
+
+def test_stable_ignores_trailing_junk_after_sent():
+    out = _feed(["Let's try this way.", "Let's try this way.", "Let's try this way.••", "Let's try this way.••"])
+    assert out[1] == "Let's try this way." and out[2:] == [None, None]
+
+
+def test_stable_emits_genuinely_new_line():
+    out = _feed(["Come on, compadre.", "Come on, compadre.", "Ain't you a sorry sight?", "Ain't you a sorry sight?"])
+    assert out == [None, "Come on, compadre.", None, "Ain't you a sorry sight?"]

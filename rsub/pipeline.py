@@ -1,5 +1,6 @@
 """Yakala → OCR → sabitle → konuşmacıları ayır → çevir → yayınla döngüsü."""
 import asyncio
+import difflib
 import time
 from collections import deque
 from dataclasses import dataclass, field
@@ -18,12 +19,29 @@ SLOW_MS = 1000
 ERROR_PAUSE = 1.0  # beklenmedik hatadan sonra bekleme (sn)
 
 
+_JITTER = str.maketrans({"I": "l", "|": "l", "1": "l", "’": "'", "‘": "'", "`": "'"})
+
+
+def _norm(text: str) -> str:
+    """OCR'ın kareden kareye oynattığı ayrıntıları siler: I/l/| karışması, uçtaki çöp karakterler, boşluklar."""
+    t = " ".join((text or "").translate(_JITTER).split())
+    return t.strip(" •·.,;:-_~*'\"").lower()
+
+
+def _same(a: str | None, b: str | None) -> bool:
+    if a is None or b is None:
+        return a is b
+    na, nb = _norm(a), _norm(b)
+    if not na or not nb:
+        return na == nb
+    return na == nb or difflib.SequenceMatcher(None, na, nb).ratio() >= 0.9
+
+
 def stable(state: dict, text: str) -> str | None:
-    """Metin art arda 2 karede aynı kaldığında ve son gönderilenden farklıysa döndürür.
+    """Metin art arda 2 karede (OCR titremesine rağmen) aynı kaldığında ve son gönderilenden farklıysa döndürür.
     Ekrandan kalkınca "" döndürür (altyazıyı temizlemek için). Aksi halde None."""
-    # ponytail: birebir eşleşme; OCR kareler arası 1 harf oynatırsa satır gecikir, gerekirse benzerlik oranı (difflib) kullan
     prev, state["prev"] = state["prev"], text
-    if text != prev or text == state["sent"]:
+    if not _same(text, prev) or _same(text, state["sent"]):
         return None
     state["sent"] = text
     return text
