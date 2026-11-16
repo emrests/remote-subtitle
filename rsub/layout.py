@@ -125,9 +125,10 @@ def pill(lines: list[dict], style: dict, region_w: int, region_h: int, scale: fl
         px = max(MIN_PX, int(px * 0.9))
     if anchor:
         ax, ay, aw, ah = anchor
-        # oyunun kendi altyazı kutusu yazıdan taşar: onu da kapatacak pay bırak (satır yüksekliğinin ~%40'ı)
-        margin = max(12, round(ah / (anchor_lines or 1) * 0.4))
-        w, h = max(w, aw + 2 * margin), max(h, ah + 2 * margin)
+        # oyunun kendi altyazı kutusu yazıdan taşar (RDR2'de yanlara daha çok): onu da kapatacak pay bırak
+        line_h = ah / (anchor_lines or 1)
+        mx, my = max(14, round(line_h * 0.8)), max(12, round(line_h * 0.45))
+        w, h = max(w, aw + 2 * mx), max(h, ah + 2 * my)
         cx, cy = ax + aw / 2, ay + ah / 2
     else:
         cx, cy = region_w / 2, region_h / 2
@@ -155,12 +156,16 @@ def render(lines: list[dict], style: dict, w: int, h: int, scale: float, backdro
     draw = ImageDraw.Draw(img)
     _, rows = fitted or fit(lines, style, w, h, scale)
     shadow = max(1, round(2 * scale))
-    y = (h - sum(r["height"] for r in rows)) // 2
+    top = (h - sum(r["height"] for r in rows)) / 2
     for r in rows:
         x = (w - r["width"]) // 2
+        # Taban çizgisini, büyük harf yüksekliğinin ortası satırın ortasına gelecek yere koy (görsel ortalama);
+        # satırın üst kenarından çizmek yazıyı aşağıda bırakıyordu.
+        cap = -r["parts"][0][2].getbbox("H", anchor="ls")[1]
+        base = round(top + r["height"] / 2 + cap / 2)
         for text, color, font in r["parts"]:
-            draw.text((x + shadow, y + shadow), text, font=font, fill=(0, 0, 0, 150))  # açık sahnede okunurluk
-            draw.text((x, y), text, font=font, fill=_rgba(color, 1.0))
+            draw.text((x + shadow, base + shadow), text, font=font, fill=(0, 0, 0, 150), anchor="ls")  # okunurluk
+            draw.text((x, base), text, font=font, fill=_rgba(color, 1.0), anchor="ls")
             x += font.getlength(text + " ")
-        y += r["height"]
+        top += r["height"]
     return img

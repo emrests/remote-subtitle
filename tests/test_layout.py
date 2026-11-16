@@ -130,9 +130,10 @@ def test_pill_shrinks_when_lines_do_not_fit_region():
 
 def test_pill_leaves_margin_for_game_subtitle_box():
     from rsub.layout import pill
-    (x, y, w, h), _ = pill(LINE, STYLE, 1600, 400, 1.0, (500, 150, 300, 36), 1)
+    short = [{"speaker": None, "color": None, "en": "x", "tr": "Ok."}]  # İngilizce uzun, Türkçe çok kısa
+    (x, y, w, h), _ = pill(short, STYLE, 1600, 400, 1.0, (500, 150, 300, 36), 1)
     assert y <= 150 - 12 and y + h >= 186 + 12  # oyunun kendi koyu kutusu yazıdan ~10-15 px taşar
-    assert x <= 500 - 12 and x + w >= 800 + 12
+    assert x <= 500 - 28 and x + w >= 800 + 28  # RDR2: kutu yanlara satır yüksekliğinin ~%75'i kadar taşıyor
 
 
 def test_blur_strong_enough_to_erase_text_under_pill():
@@ -143,3 +144,18 @@ def test_blur_strong_enough_to_erase_text_under_pill():
     img = render([{**LINE[0], "speaker": None, "tr": "."}], style, 600, 70, scale=1.0, backdrop=src)
     col = [img.getpixel((120, y))[0] for y in range(8, 62)]  # Türkçe "." ortada; ondan uzak sütun
     assert max(col) - min(col) < 70  # şerit eridi: kenarla orta arasında keskin fark yok
+
+
+def _ink_box(img):
+    """Beyaz yazı piksellerinin (zemin koyu) kapsadığı satır aralığı."""
+    w, h = img.size
+    rows = [y for y in range(h) if any(img.getpixel((x, y))[0] > 200 for x in range(0, w, 2))]
+    return rows[0], rows[-1]
+
+
+def test_text_vertically_centered_in_pill():
+    style = {**STYLE, "bg": "#000000", "bgOpacity": 1.0, "blur": 0}
+    for tr in ("HELLO THERE", "Kısa."):
+        img = render([{"speaker": None, "color": None, "en": "x", "tr": tr}], style, 500, 90, scale=1.0)
+        top, bottom = _ink_box(img)
+        assert abs(top - (90 - 1 - bottom)) <= 4, (tr, top, 89 - bottom)  # üst ve alt boşluk eşit
