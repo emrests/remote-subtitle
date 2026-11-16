@@ -244,3 +244,19 @@ def test_overlay_pill_follows_english_box():
     box, size = a.overlay.shown[-1]
     assert box["width"] < 960 and size == (box["width"], box["height"])
     assert abs(box["left"] + box["width"] / 2 - (480 + 480)) <= 2  # İngilizcenin merkezinde
+
+
+def test_overlay_uses_original_line_count():
+    a = _overlay_app()
+    a.rt.profile["region"] = [0.1, 0.6, 0.8, 0.35]
+    a.rt.last_lines = [{"speaker": None, "color": None, "en": "x",
+                        "tr": "Pekala, geldiğimiz yolu geri takip edemeyiz. Hadi bu yolu deneyelim o zaman."}]
+    a.rt.text_box, a.rt.text_lines = (500, 60, 700, 135), 3
+    seen = {}
+    real = web.layout.render
+    web.layout.render = lambda *args, **k: (seen.update(rows=len(k["fitted"][1])), real(*args, **k))[1]
+    try:
+        a.sync_overlay((0, 0, 1920, 1080))
+    finally:
+        web.layout.render = real
+    assert seen["rows"] == 3

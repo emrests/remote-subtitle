@@ -76,6 +76,7 @@ class Runtime:
     last_lines: list = field(default_factory=list)
     model_ready: bool = True  # App, Ollama'da model kurulu mu diye günceller
     text_box: tuple | None = None  # gösterilen İngilizce satırın bölgedeki konumu (OCR'dan)
+    text_lines: int = 0  # orijinal altyazının satır sayısı
     on_frame: Callable | None = None  # her karede kaynak dikdörtgeniyle (ya da None) çağrılır: katman konumu
     status: dict = field(default_factory=lambda: {"window": False, "last": None, "avgMs": None,
                                                   "slow": False, "error": None, "running": True})
@@ -148,6 +149,7 @@ async def _frame(rt: Runtime, sct, state: dict, tr, t0: float) -> None:
     t3 = time.perf_counter()
     rt.last_lines = lines
     rt.text_box = getattr(line, "box", None)
+    rt.text_lines = getattr(line, "lines", 0)
     rt.emit({"type": "lines", "lines": lines})
     if rt.on_frame:
         rt.on_frame(rect, region_img)

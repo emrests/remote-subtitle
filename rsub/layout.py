@@ -94,16 +94,32 @@ def _frosted(backdrop, w: int, h: int, radius: float):
     return small.resize((w, h), Image.BILINEAR).convert("RGBA")
 
 
-def pill(lines: list[dict], style: dict, region_w: int, region_h: int, scale: float, anchor):
-    """Çevirinin kutusu: yazıya göre boyutlanır, İngilizce altyazının (anchor, bölgeye göre x,y,w,h) merkezine
-    oturur ve onu tamamen kapatır; bölge dışına taşmaz. ((x, y, w, h), (px, satırlar)) döner."""
-    px = max(MIN_PX, round(style["size"] * scale))
+def _span(lines: list[dict], style: dict, px: int) -> float:
+    """Tüm metin tek satıra yazılsa kaç piksel tutardı."""
+    return sum(r["width"] for r in _rows(lines, style, px, 10 ** 9))
+
+
+def pill(lines: list[dict], style: dict, region_w: int, region_h: int, scale: float, anchor, anchor_lines=None):
+    """Çevirinin kutusu. İngilizce altyazının (anchor: bölgeye göre x,y,w,h) yerine oturur ve onu tamamen kapatır.
+    Orijinalin satır sayısı (anchor_lines) biliniyorsa yazı boyutu orijinal satır yüksekliğinden alınır ve
+    Türkçe aynı sayıda satıra dengeli bölünür; sığmazsa genişler, yine sığmazsa küçülür.
+    ((x, y, w, h), (px, satırlar)) döner."""
+    if anchor and anchor_lines:
+        px = max(MIN_PX, round(anchor[3] / anchor_lines / 1.15))
+    else:
+        px = max(MIN_PX, round(style["size"] * scale))
+    n = anchor_lines or None
     while True:
         padx, pady = round(px * 0.6), round(px * 0.3)
-        rows = _rows(lines, style, px, max(1, region_w - 2 * padx))
+        inner = max(1, region_w - 2 * padx)
+        limit = min(inner, _span(lines, style, px) / n * 1.08 + px) if n else inner  # n satıra dengeli böl
+        rows = _rows(lines, style, px, limit)
+        while n and len(rows) > n and limit < inner:  # n'e sığmadı: genişle
+            limit = min(inner, limit * 1.15)
+            rows = _rows(lines, style, px, limit)
         w = max((r["width"] for r in rows), default=0) + 2 * padx
         h = sum(r["height"] for r in rows) + 2 * pady
-        if (w <= region_w and h <= region_h) or px <= MIN_PX:
+        if (w <= region_w and h <= region_h and (not n or len(rows) <= n)) or px <= MIN_PX:
             break
         px = max(MIN_PX, int(px * 0.9))
     if anchor:

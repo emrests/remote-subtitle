@@ -91,3 +91,30 @@ def test_render_with_fitted_pill_keeps_rows():
     (x, y, w, h), fitted = pill(LONG, STYLE, 1600, 400, 1.0, None)
     img = render(LONG, STYLE, w, h, 1.0, fitted=fitted)
     assert img.size == (w, h)
+
+
+TWO_LINE_TR = [{"speaker": None, "color": None, "en": "x",
+                "tr": "Pekala, geldiğimiz yolu geri takip edemeyiz. Hadi bu yolu deneyelim o zaman."}]
+
+
+def _anchor(lines, line_h=40, w=700, x=300, y=60):
+    return (x, y, w, line_h * lines), lines
+
+
+def test_pill_matches_original_line_count():
+    from rsub.layout import pill
+    for n in (1, 2, 3):
+        (x, y, w, h), (px, rows) = pill(TWO_LINE_TR, STYLE, 1600, 400, 1.0, *_anchor(n))
+        assert len(rows) == n, n
+
+
+def test_pill_font_matches_original_size():
+    from rsub.layout import pill
+    _, (px, _) = pill(LINE, STYLE, 1600, 400, 1.0, *_anchor(1, line_h=40))
+    assert 28 <= px <= 40  # orijinal satır ~40 px yüksek; ayar 48 olsa da orijinale uyar
+
+
+def test_pill_shrinks_when_lines_do_not_fit_region():
+    from rsub.layout import pill
+    (x, y, w, h), (px, rows) = pill(TWO_LINE_TR, STYLE, 500, 400, 1.0, *_anchor(1, w=300, x=100))
+    assert len(rows) == 1 and w <= 500 and px < 30

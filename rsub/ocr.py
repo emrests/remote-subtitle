@@ -32,8 +32,9 @@ def make_ocr():
 
 
 class OcrText(str):
-    """Okunan metin; .box = metnin görüntüdeki kapsayıcı dikdörtgeni (x, y, w, h) ya da None."""
+    """Okunan metin; .box = görüntüdeki kapsayıcı dikdörtgen (x, y, w, h) ya da None, .lines = satır sayısı."""
     box: tuple | None = None
+    lines: int = 0
 
 
 async def ocr(engine, shot) -> OcrText:
@@ -42,6 +43,7 @@ async def ocr(engine, shot) -> OcrText:
     bmp = SoftwareBitmap.create_copy_from_buffer(w.detach_buffer(), BitmapPixelFormat.BGRA8, shot.width, shot.height)
     result = await engine.recognize_async(bmp)
     out = OcrText(" ".join(line.text for line in result.lines).strip())
+    out.lines = sum(1 for line in result.lines if line.text.strip())
     rects = [wd.bounding_rect for line in result.lines for wd in line.words]
     if rects:
         x0, y0 = min(r.x for r in rects), min(r.y for r in rects)
