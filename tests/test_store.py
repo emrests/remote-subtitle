@@ -94,3 +94,8 @@ def test_speaker_color_option_defaults_off_and_persists(tmp_path, monkeypatch):
     assert store.default_profile("A")["speakerColor"] is False
     p = store.default_profile("A"); p["speakerColor"] = True; store.save_profile(p)
     assert store.load_profile("A")["speakerColor"] is True
+
+
+def test_display_targets_default_on():
+    p = store.default_profile("A")
+    assert p["showPc"] is True and p["showTv"] is True

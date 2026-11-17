@@ -148,6 +148,7 @@ function renderStatus() {
     chip(`Ekran ${st.clients || 0}`, (st.clients || 0) > 0, "Bağlı gösterim ekranı (TV ya da tarayıcıdaki gösterim sayfası) sayısı"),
   ];
   $("chips").replaceChildren(...chips);
+  renderTargets();
 
   const running = !!st.running;
   const run = $("btn-run");
@@ -206,18 +207,23 @@ function renderFeed(fresh) {
     row.className = "feed-row" + (fresh && i === 0 ? " fresh" : "");
     const time = document.createElement("time");
     time.textContent = new Date(h.t * 1000).toLocaleTimeString("tr-TR", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+    // Konuşmacı ayrı sütunda: OCR'ın konuşanı doğru ayırıp ayırmadığı buradan görülür
+    const who = document.createElement("div"); who.className = "who-col";
     const en = document.createElement("div"); en.className = "en";
     const tr = document.createElement("div"); tr.className = "tr";
     h.lines.forEach((l, j) => {
-      if (j) { en.append(document.createElement("br")); tr.append(document.createElement("br")); }
+      if (j) for (const el of [who, en, tr]) el.append(document.createElement("br"));
+      const name = document.createElement("span");
       if (l.speaker) {
-        const who = document.createElement("span"); who.className = "who"; who.textContent = l.speaker + ":";
-        who.style.color = l.color || S.profile?.style?.nameColor || "";
-        tr.append(who); en.append(l.speaker + ": ");
+        name.textContent = l.speaker;
+        name.style.color = l.color || S.profile?.style?.nameColor || "";
+      } else {
+        name.textContent = "—"; name.className = "none"; name.title = "Konuşmacı algılanmadı";
       }
+      who.append(name);
       en.append(l.en); tr.append(l.tr);
     });
-    row.append(time, en, tr);
+    row.append(time, who, en, tr);
     return row;
   }));
 }
@@ -249,7 +255,7 @@ async function loadSources() {
   $("source").replaceChildren(...opts);
 }
 $("btn-sources").onclick = loadSources;
-$("source").onchange = (e) => { S.profile.source = e.target.value; S.shot = null; renderRegion(); saveProfileSoon(); };
+$("source").onchange = (e) => { S.profile.source = e.target.value; S.shot = null; renderRegion(); renderTargets(); saveProfileSoon(); };
 
 async function snap() {
   const d = await send("snapshot", { source: S.profile.source });
@@ -267,10 +273,24 @@ setInterval(async () => {
   liveBusy = false;
 }, 1000);
 
-$("overlay").onchange = (e) => act(async () => {
-  S.settings = await send("save_settings", { settings: { overlay: e.target.checked } });
-  toast(e.target.checked ? "Çeviri kaynağın üstünde gösterilecek" : "Kaynağın üstündeki çeviri kapatıldı");
-});
+// ---------- çeviriyi göster: bilgisayar / TV ----------
+function renderTargets() {
+  if (!S.profile) return;
+  const ps5Src = S.profile.source === "ps5";
+  $("show-pc").checked = S.profile.showPc !== false && !ps5Src;
+  $("show-pc").disabled = ps5Src;
+  $("show-pc-info").textContent = ps5Src
+    ? "PS5 kaynağında kullanılamaz: bilgisayarda oyun penceresi yok."
+    : "Kaynağın üstünde, orijinal İngilizce altyazıyı kapatarak.";
+  $("show-tv").checked = S.profile.showTv !== false;
+  const n = (S.status && S.status.clients) || 0;
+  const info = $("show-tv-info");
+  info.replaceChildren();
+  const dot = document.createElement("span"); dot.className = "dot" + (n ? " on" : "");
+  info.append(dot, n ? `TV bağlı${n > 1 ? ` (${n} ekran)` : ""}` : "TV uygulaması açık değil");
+}
+$("show-pc").onchange = (e) => { S.profile.showPc = e.target.checked; saveProfileSoon(); renderTargets(); };
+$("show-tv").onchange = (e) => { S.profile.showTv = e.target.checked; saveProfileSoon(); renderTargets(); };
 
 function renderRegion() {
   const has = !!S.shot;
@@ -469,7 +489,6 @@ function renderConn() {
   $("btn-copy-url").onclick = () => navigator.clipboard.writeText(url).then(() => toast("Adres kopyalandı"));
   $("btn-open-display").onclick = () => window.open(`/display.html`, "_blank");
   $("chiaki-path").value = S.settings.chiakiPath || "";
-  $("overlay").checked = S.settings.overlay !== false;
 }
 $("chiaki-path").onchange = (e) => act(async () => { S.settings = await send("save_settings", { settings: { chiakiPath: e.target.value.trim() } }); });
 $("btn-chiaki").onclick = () => act(async () => { await send("launch_chiaki"); toast("chiaki-ng başlatıldı"); });

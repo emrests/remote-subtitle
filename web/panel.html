@@ -50,7 +50,7 @@
         </div>
       </header>
       <div class="feed" id="feed" aria-live="polite">
-        <div class="feed-head"><span></span><span>Orijinal</span><span>Çeviri</span></div>
+        <div class="feed-head"><span></span><span>Konuşmacı</span><span>Orijinal</span><span>Çeviri</span></div>
         <div id="feed-rows"></div>
         <div class="empty" id="feed-empty">Henüz çeviri yok. Çeviriyi başlattığınızda altyazılar burada akar.</div>
       </div>
@@ -77,8 +77,13 @@
           <div class="region" id="region" hidden><span>Altyazı bölgesi</span></div>
         </div>
         <p class="muted" id="region-info"></p>
-        <label class="check"><input type="checkbox" id="overlay">
-          Çeviriyi bu bilgisayarda kaynağın üstünde göster (orijinal İngilizce altyazının üstünü kapatır)</label>
+        <div class="targets">
+          <b>Çeviriyi göster</b>
+          <label class="check"><input type="checkbox" id="show-pc"> Bu bilgisayarda</label>
+          <span class="muted" id="show-pc-info"></span>
+          <label class="check"><input type="checkbox" id="show-tv"> TV'de</label>
+          <span class="muted" id="show-tv-info"></span>
+        </div>
       </div>
     </section>
 

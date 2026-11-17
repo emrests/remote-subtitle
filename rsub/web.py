@@ -102,6 +102,7 @@ class App:
         self.overlay = None  # serve_app gerçek katmanı bağlar; testler sahtesini
         self.history: deque = deque(maxlen=20)  # paneldeki çeviri akışı
         self._overlay_key = None
+        self._tv_cover = False  # TV'ye kutu gönderildi ve henüz kaldırılmadı
         self.clients: set = set()
         self.displays: set = set()  # /display adresinden bağlanan gösterim ekranları (TV, ikinci ekran)
         self.port = PORT
@@ -132,7 +133,9 @@ class App:
         if self._overlay_key is not None:  # yalnızca gösteriliyorsa gizle (her karede komut gönderme)
             if self.overlay is not None:
                 self.overlay.hide()
-            self.send_displays({"type": "cover", "box": None})
+            if self._tv_cover:
+                self.send_displays({"type": "cover", "box": None})
+                self._tv_cover = False
             self._overlay_key = None
 
     def sync_overlay(self, rect, backdrop=None) -> None:
@@ -140,8 +143,13 @@ class App:
         TV'deki görünüm PC'dekiyle birebir aynı olur (buzlu cam dahil: chiaki karesi = TV karesi)."""
         s, pending = self.rt.settings, self.rt.pending_box
         # PS5 kaynağında PC'de oyun penceresi yok: katman yalnız TV'de (rect kare koordinatıdır, ekran değil)
-        show_pc = self.overlay is not None and s.get("overlay", True) and self.rt.profile["source"] != ps5.SOURCE
-        show_tv = bool(self.displays)
+        prof = self.rt.profile
+        show_pc = (self.overlay is not None and prof.get("showPc", True)
+                   and prof["source"] != ps5.SOURCE)
+        show_tv = bool(self.displays) and prof.get("showTv", True)
+        if not show_tv and self._tv_cover:  # "TV'de göster" kapatıldı: TV'de kalan kutuyu kaldır
+            self.send_displays({"type": "cover", "box": None})
+            self._tv_cover = False
         lines = [] if pending else self.rt.last_lines  # yeni satır bekliyorsa eski çeviri değil boş kapak
         anchor, n = pending if pending else (self.rt.text_box, self.rt.text_lines)
         px_hint = self.rt.pending_px if pending else self.rt.text_px
@@ -172,6 +180,7 @@ class App:
             fx, fy, fw, fh = capture.video_frame(rect)
             buf = io.BytesIO()
             img.save(buf, "WEBP", quality=90)
+            self._tv_cover = True
             self.send_displays({"type": "cover",
                                 "box": [(box["left"] - fx) / fw, (box["top"] - fy) / fh, w / fw, h / fh],
                                 "img": "data:image/webp;base64," + base64.b64encode(buf.getvalue()).decode()})

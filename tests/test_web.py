@@ -215,7 +215,7 @@ def test_overlay_centered_in_region_without_text_box():
 def test_overlay_hidden_when_off_paused_or_no_window():
     a = _overlay_app()
     a.sync_overlay(None)
-    a.rt.settings["overlay"] = False
+    a.rt.profile["showPc"] = False
     a.sync_overlay((0, 0, 1920, 1080))
     assert a.overlay.shown == []
 
@@ -338,7 +338,7 @@ def test_cover_sent_to_tv_normalized_to_video_frame(monkeypatch):
 
 def test_cover_sent_even_if_pc_overlay_off(monkeypatch):
     a = _overlay_app()
-    a.rt.settings["overlay"] = False
+    a.rt.profile["showPc"] = False
     sent = []
     monkeypatch.setattr(a, "send_displays", sent.append)
     a.displays = {object()}
@@ -458,3 +458,27 @@ async def test_tv_install_refuses_tv_missing_from_certificate(app, port):
             assert not r["ok"] and "sertifika" in r["error"].lower()
     finally:
         tizen_cert.load, tizen_device.info = orig
+
+
+def test_show_on_tv_off_sends_nothing_and_clears_tv(monkeypatch):
+    a = _overlay_app()
+    sent = []
+    monkeypatch.setattr(a, "send_displays", sent.append)
+    a.displays = {object()}
+    a.sync_overlay((0, 0, 1920, 1080))
+    assert any(m["box"] for m in sent)                       # açıkken TV'ye gider
+    a.rt.profile["showTv"] = False
+    sent.clear()
+    a.sync_overlay((0, 0, 1920, 1080))
+    assert sent == [{"type": "cover", "box": None}]           # kapatınca TV'deki kutu kalkar
+    assert a.overlay.shown                                    # PC'deki kutu sürer
+    sent.clear()
+    a.sync_overlay((0, 0, 1920, 1080))
+    assert sent == []                                         # sonra TV'ye hiçbir şey gitmez
+
+
+def test_show_on_pc_off_draws_nothing_on_pc():
+    a = _overlay_app()
+    a.rt.profile["showPc"] = False
+    a.sync_overlay((0, 0, 1920, 1080))
+    assert a.overlay.shown == []
