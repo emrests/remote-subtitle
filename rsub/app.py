@@ -21,6 +21,22 @@ def already_running() -> bool:
     return ctypes.windll.kernel32.GetLastError() == ERROR_ALREADY_EXISTS
 
 
+def set_window_icon(title: str, ico) -> None:
+    """Pencere ve görev çubuğu simgesi. Kaynaktan (python.exe) çalışınca Windows Python simgesini gösteriyordu;
+    ayrı uygulama kimliği görev çubuğunda Python'la aynı gruba düşmesini de önler."""
+    user32 = ctypes.windll.user32
+    user32.FindWindowW.restype = ctypes.c_void_p
+    user32.LoadImageW.restype = ctypes.c_void_p
+    user32.SendMessageW.argtypes = [ctypes.c_void_p, ctypes.c_uint, ctypes.c_void_p, ctypes.c_void_p]
+    hwnd = user32.FindWindowW(None, title)
+    if not hwnd:
+        return
+    for which, size in ((1, 0), (0, 16)):  # ICON_BIG (sistem boyutu), ICON_SMALL
+        h = user32.LoadImageW(None, str(ico), 1, size, size, 0x10 | (0x40 if not size else 0))  # LR_LOADFROMFILE
+        if h:
+            user32.SendMessageW(hwnd, 0x80, which, h)  # WM_SETICON
+
+
 def ask_show(port: int) -> None:
     """Çalışan kopyadan panelini öne getirmesini ister."""
     from websockets.sync.client import connect
@@ -48,6 +64,10 @@ def main(argv: list[str] | None = None) -> None:
     p.add_argument("--port", type=int, default=PORT)
     a = p.parse_args(argv)
     capture.set_dpi_aware()
+    try:  # görev çubuğunda kendi simgesi ve grubu (python.exe ile karışmasın)
+        ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID("RemoteSubtitle.TR")
+    except (AttributeError, OSError):
+        pass
 
     if a.headless:
         asyncio.run(serve_app(a.port))
@@ -90,6 +110,7 @@ def main(argv: list[str] | None = None) -> None:
         return False
 
     window.events.closing += on_closing
+    window.events.shown += lambda: set_window_icon(APP_TITLE, WEB_DIR / "icon.ico")
 
     def quit_app(icon, _item) -> None:
         icon.stop()
