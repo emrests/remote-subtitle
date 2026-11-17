@@ -12,6 +12,8 @@ pystray
 Pillow
 pytest
 pyspellchecker
+# Samsung TV kurulumu: paket imzası (XML C14N)
+lxml
 # PS5'ten doğrudan görüntü (Remote Play). pyremoteplay'in netifaces bağımlılığı Python 3.14'te derlenemiyor:
 #   pip install --no-deps pyremoteplay==0.7.6   (ardından aşağıdakiler)
 netifaces-plus

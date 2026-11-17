@@ -8,6 +8,7 @@ import os
 import threading
 
 from . import capture
+from .capture import APP_TITLE
 from .web import PORT, WEB_DIR, serve_app
 
 ERROR_ALREADY_EXISTS = 183
@@ -80,7 +81,7 @@ def main(argv: list[str] | None = None) -> None:
         holder["error"] = "Sunucu 15 saniye içinde yanıt vermedi."
 
     page = {"html": error_page(holder["error"])} if "error" in holder else {"url": f"http://127.0.0.1:{a.port}/"}
-    window = webview.create_window("remote-subtitle", width=1280, height=800, min_size=(1100, 720),
+    window = webview.create_window(APP_TITLE, width=1280, height=800, min_size=(1100, 720),
                                    background_color="#12161f", **page)
     holder["window"] = window
 
@@ -94,7 +95,7 @@ def main(argv: list[str] | None = None) -> None:
         icon.stop()
         os._exit(0)
 
-    tray = pystray.Icon("remote-subtitle", Image.open(WEB_DIR / "icon.png"), "remote-subtitle",
+    tray = pystray.Icon("remote-subtitle", Image.open(WEB_DIR / "icon.png"), APP_TITLE,
                         menu=pystray.Menu(pystray.MenuItem("Paneli aç", lambda i, _: show(), default=True),
                                           pystray.MenuItem("Çıkış", quit_app)))
     tray.run_detached()

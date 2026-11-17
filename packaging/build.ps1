@@ -5,6 +5,12 @@ $ErrorActionPreference = "Stop"
 $root = Split-Path $PSScriptRoot -Parent
 Set-Location $root
 
+# TV kurulumu için sdb (Tizen'in TV aracı, Apache-2.0). Kurulu Tizen Studio'dan alınır; yoksa kurulum paketi
+# TV'ye kurmayı yalnız Tizen Studio'su olan bilgisayarda yapabilir.
+$sdb = "$env:SystemDrive\tizen-studio\tools\sdb.exe"
+if (Test-Path $sdb) { New-Item -ItemType Directory -Force packaging\vendor\sdb | Out-Null; Copy-Item $sdb packaging\vendor\sdb\ -Force }
+else { Write-Warning "sdb.exe bulunamadı ($sdb): kurulum paketi sdb içermeyecek" }
+
 python -m PyInstaller packaging\rsub.spec --noconfirm --distpath dist --workpath build
 if ($LASTEXITCODE -ne 0) { throw "PyInstaller başarısız" }
 

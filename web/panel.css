@@ -37,13 +37,7 @@ p { margin: 0; }
   background: var(--ink-1); border-bottom: 1px solid var(--line);
 }
 .brand { display: flex; align-items: center; gap: 10px; font-weight: 600; margin-right: 8px; white-space: nowrap; }
-.brand-mark {
-  width: 26px; height: 18px; border-radius: 4px; background: var(--ink-2); position: relative;
-  border: 1px solid var(--line);
-}
-.brand-mark::after {
-  content: ""; position: absolute; left: 5px; right: 5px; bottom: 4px; height: 3px; border-radius: 2px; background: var(--accent);
-}
+.brand-mark { width: 26px; height: 26px; border-radius: 6px; }
 .profile-switch { display: flex; align-items: center; gap: 8px; }
 .profile-switch select { min-width: 220px; font-weight: 600; }
 .chips { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
@@ -231,3 +225,8 @@ td.actions { width: 1%; white-space: nowrap; }
 .steps .row { gap: 8px; flex-wrap: wrap; }
 .steps li.done > .stack { display: none; }
 textarea { width: 100%; resize: vertical; }
+
+/* TV listesi */
+#tv-list { margin-top: 10px; }
+#tv-list td { padding: 6px 12px 6px 0; vertical-align: middle; }
+#tv-list code { font-size: 12px; }

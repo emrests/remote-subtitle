@@ -10,7 +10,10 @@
   var pcInput = document.getElementById("pc");
   var hdmiInput = document.getElementById("hdmi");
 
-  function load(k, d) { try { return localStorage.getItem(k) || d; } catch (e) { return d; } }
+  var DEFAULT_PC = (typeof RSUB_DEFAULT_PC === "string" && RSUB_DEFAULT_PC) || "";  // kurulumda PC yazar
+  function load(k, d) {
+    try { return localStorage.getItem(k) || (k === "pc" ? DEFAULT_PC : "") || d; } catch (e) { return d; }
+  }
   function save(k, v) { try { localStorage.setItem(k, v); } catch (e) { /* yoksay */ } }
 
   function toast(text, ms) {

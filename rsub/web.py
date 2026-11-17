@@ -21,7 +21,8 @@ from websockets.asyncio.server import serve
 from websockets.datastructures import Headers
 from websockets.http11 import Response
 
-from . import capture, layout, ps5, store
+from . import capture, layout, ps5, store, tizen_cert, tizen_device
+from .tizen_sign import sign_wgt
 from .models import gpu_vram_mb, installed, model_infos, ollama_up, pull, recommend, start_ollama
 from .ocr import make_ocr, ocr_language
 from .pipeline import Runtime, _same, run
@@ -29,6 +30,7 @@ from .pipeline import Runtime, _same, run
 PORT = 8765
 # PyInstaller paketinde dosyalar _MEIPASS altında
 WEB_DIR = Path(getattr(sys, "_MEIPASS", Path(__file__).resolve().parent.parent)) / "web"
+TV_APP_DIR = WEB_DIR.parent / "tizen"  # TV uygulamasının kaynakları (kurulumda imzalanıp TV'ye gönderilir)
 
 
 def _is_local(ws) -> bool:
@@ -50,6 +52,29 @@ def static_rel(raw_path: str) -> str | None:
 
 
 is_local = _is_local  # testler değiştirebilsin
+
+
+def build_tv_package(cert, pc_ip: str, src: Path | None = None) -> bytes:
+    """TV uygulamasını PC adresi içine yazılmış halde imzalar (TV'de ilk açılışta adres sorulmaz)."""
+    import shutil
+    import tempfile
+    src = src or TV_APP_DIR
+    with tempfile.TemporaryDirectory() as d:
+        app = Path(d) / "app"
+        shutil.copytree(src, app, ignore=shutil.ignore_patterns("README.md", "*.wgt", ".*"))
+        (app / "defaults.js").write_text(f'var RSUB_DEFAULT_PC = "{pc_ip}";\n', encoding="utf-8")
+        return sign_wgt(app, cert.author, cert.distributor)
+
+
+def local_networks() -> list[str]:
+    """Bu bilgisayarın özel ağları (/24): TV taraması için."""
+    import ipaddress
+    nets = set()
+    for info in socket.getaddrinfo(socket.gethostname(), None, socket.AF_INET):
+        ip = ipaddress.ip_address(info[4][0])
+        if ip.is_private and not ip.is_loopback and not ip.is_link_local:
+            nets.add(str(ipaddress.ip_network(f"{ip}/24", strict=False)))
+    return sorted(nets)
 
 
 def local_ip() -> str:
@@ -364,6 +389,79 @@ class App:
         self.rt.settings["ps5Host"] = host
         store.save_settings(self.rt.settings)
         return {"name": name, "settings": self.rt.settings}
+
+    # --- TV kurulumu (Kurulum sekmesi): sertifika, TV bulma, kurma ---
+    def _tvs(self) -> list[dict]:
+        return self.rt.settings.setdefault("tvs", [])
+
+    def _remember_tv(self, tv: dict) -> None:
+        same = lambda t: t.get("duid") == tv["duid"] or t.get("ip") == tv["ip"]
+        old = next((t for t in self._tvs() if same(t)), {})
+        self.rt.settings["tvs"] = [t for t in self._tvs() if not same(t)] + [{**old, **tv}]  # "installed" korunur
+        store.save_settings(self.rt.settings)
+
+    async def cmd_tv_state(self, msg):
+        cert = await asyncio.to_thread(tizen_cert.load)
+        return {"cert": cert.info() if cert else None, "tvs": self._tvs(), "pcIp": local_ip(),
+                "sdb": tizen_device.sdb_path() is not None, "busy": getattr(self, "tv_busy", None)}
+
+    async def cmd_tv_scan(self, msg):
+        ips = await asyncio.to_thread(tizen_device.scan, local_networks())
+        if msg.get("ip"):
+            ips = sorted(set(ips) | {msg["ip"].strip()})
+        found = []
+        for ip in ips:
+            try:
+                tv = await asyncio.to_thread(tizen_device.info, ip)
+            except Exception as e:  # noqa: BLE001 — bir TV'nin hatası taramayı durdurmasın
+                found.append({"ip": ip, "error": str(e)})
+                continue
+            if tv["duid"]:
+                self._remember_tv(tv)
+            found.append(tv)
+        return {"found": found, "tvs": self._tvs()}
+
+    async def cmd_tv_import_tizen(self, msg):
+        folder = Path(msg.get("path") or Path.home() / "SamsungCertificate")
+        if not (folder / "distributor.p12").exists():  # klasör seçilmediyse: tek profil varsa onu al
+            subs = [p for p in folder.glob("*") if (p / "distributor.p12").exists()]
+            if len(subs) != 1:
+                raise RuntimeError(f"Tizen Studio sertifikası bulunamadı ({folder})")
+            folder = subs[0]
+        cert = await asyncio.to_thread(tizen_cert.import_tizen_studio, folder)
+        return cert.info()
+
+    async def cmd_tv_create_cert(self, msg):
+        """Samsung girişi (tarayıcı) + sertifika; bilinen bütün TV'ler sertifikaya eklenir."""
+        duids = sorted({t["duid"] for t in self._tvs() if t.get("duid")} | set(msg.get("duids") or []))
+        if not duids:
+            raise RuntimeError("Önce TV'yi bulun: sertifika, TV'nin kimliğiyle oluşturulur")
+        self.tv_busy = "Samsung girişi bekleniyor (tarayıcıda)…"
+        try:
+            access = await asyncio.to_thread(tizen_cert.login)
+            if msg.get("email") and not access.email:
+                access.email = msg["email"]
+            self.tv_busy = "Sertifika oluşturuluyor…"
+            cert = await asyncio.to_thread(tizen_cert.add_tvs, access, duids)
+        finally:
+            self.tv_busy = None
+        return cert.info()
+
+    async def cmd_tv_install(self, msg):
+        ip = msg["ip"].strip()
+        tv = await asyncio.to_thread(tizen_device.info, ip)
+        cert = await asyncio.to_thread(tizen_cert.load)
+        if cert is None:
+            raise RuntimeError("Sertifika yok: önce 'Samsung ile giriş yap ve sertifika oluştur'")
+        if tv["duid"] not in cert.duids:
+            raise RuntimeError(f"Bu TV ({tv['duid']}) sertifikada yok: 'Samsung ile giriş yap' ile sertifikayı yenileyin")
+        self._remember_tv(tv)
+        wgt = await asyncio.to_thread(build_tv_package, cert, local_ip())
+        await asyncio.to_thread(tizen_device.permit, ip, cert.device_profile)
+        await asyncio.to_thread(tizen_device.install, ip, wgt)
+        await asyncio.to_thread(tizen_device.launch, ip)
+        self._remember_tv({**tv, "installed": True})
+        return {"tv": tv}
 
     async def cmd_launch_chiaki(self, msg):
         path = self.rt.settings.get("chiakiPath")

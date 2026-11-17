@@ -1,48 +1,34 @@
-# remote-subtitle — Samsung TV uygulaması
+# Remote Subtitle (TR) — Samsung TV uygulaması
 
 TV, PS5'in bağlı olduğu HDMI girişini tam ekran gösterir ve üstüne bilgisayardaki çeviri katmanını koyar.
-Çeviri kutusunu bilgisayar çizer (PC'deki katmanla aynı görünüm); TV yalnız yerleştirir. Uygulama mantığı
-bilgisayarda olduğu için PC tarafı güncellendiğinde TV uygulamasını yeniden kurmak gerekmez.
+Çeviri kutusunu bilgisayar çizer (konum ve görünüm masaüstü uygulamasındaki oyun profilinden); TV yalnız yerleştirir.
+Uygulama mantığı bilgisayarda olduğu için PC tarafı güncellendiğinde TV uygulamasını yeniden kurmak gerekmez.
 
-## Bir kerelik hazırlık (evde)
+## Kurulum (masaüstü uygulamasından, Tizen Studio gerekmez)
 
-1. **Tizen Studio + TV Extension** (bilgisayara):
-   <https://developer.samsung.com/smarttv/develop/getting-started/setting-up-sdk/installing-tv-sdk.html>
-   - Package Manager'da: *Tizen SDK tools*, *Extension SDK → TV Extensions* ve *Samsung Certificate Extension*.
-2. **Samsung sertifikası**: Tizen Studio → Tools → Certificate Manager → yeni profil, **Samsung** türü, TV.
-   (Samsung hesabıyla giriş ister; sertifikaya TV'nin DUID'i eklenir — TV bağlıyken Device Manager'dan alınır.)
-3. **TV'de Developer Mode**:
-   - TV'de *Apps* ekranını açın, kumandada sırayla **1 2 3 4 5** tuşlayın.
-   - *Developer mode* **On**, *Host PC IP* = bu bilgisayarın adresi (panelde Bağlantı bölümünde yazar).
-   - TV'yi kapatıp açın.
-4. **TV'yi bağlayın**: Tizen Studio → Device Manager → *Remote Device Manager* → TV'nin IP'si → bağlan.
+Masaüstü uygulamasında **Kurulum** sekmesi → **Samsung TV uygulaması**:
 
-## Paketleme ve kurulum
+1. **TV'de Geliştirici Modu**: TV'de *Uygulamalar* ekranında kumandayla **1 2 3 4 5** → *Developer mode* **On**,
+   *Host PC IP* = sekmede yazan bilgisayar adresi → TV'yi kapatıp açın (güç tuşuna basılı tutun).
+2. **TV'leri ara**: geliştirici modundaki TV'ler (sdb portu 26101) bulunur; model ve TV kimliği (DUID) okunur.
+3. **Samsung ile giriş yap ve sertifika oluştur**: tarayıcıda kendi Samsung hesabınızla giriş yapın. Uygulama
+   yazar ve dağıtıcı sertifikasını Samsung'un sertifika sunucusundan alır; bulunan TV'lerin kimlikleri sertifikaya
+   eklenir. Yeni TV eklendiğinde aynı düğmeyle sertifika yenilenir (yazar sertifikası aynı kalır).
+   Özel anahtarlar `%APPDATA%\remote-subtitle\tv-cert` içinde Windows DPAPI ile şifreli saklanır.
+4. **Kur**: uygulama imzalanır (bilgisayarın adresi pakete yazılır), TV'ye kurulum izni verilir, kurulur ve açılır.
 
-Tizen Studio'da: *File → Import → Tizen → Tizen Project* ile bu `tizen/` klasörünü açın, projeye sağ tık →
-*Run As → Tizen Web Application*. Ya da komut satırından (Tizen Studio `tools/ide/bin` PATH'te):
+Yedek yol: Tizen Studio Certificate Manager ile oluşturulmuş bir Samsung sertifika profili
+**Tizen Studio sertifikasını içe aktar** ile alınabilir (`%USERPROFILE%\SamsungCertificate\<profil>`).
 
-```
-tizen package -t wgt -s <sertifika-profil-adı> -- tizen
-tizen install -n tizen/remote-subtitle.wgt -t <TV-cihaz-adı>
-```
+## Kullanım
 
-## İlk açılış
+- TV'de *Uygulamalar* → **Remote Subtitle (TR)**. PC'de **Çeviriyi başlat** basılı olmalı.
+- **Geri** tuşu uygulamadan çıkar (arka planda çalışmaz). **Kırmızı tuş**: PC adresi ve HDMI numarası ayarı.
 
-- Bilgisayarın adresini ve PS5'in bağlı olduğu HDMI numarasını girin, **OK**.
-- **Kırmızı tuş**: ayar ekranı. **Geri**: çıkış.
-- Bilgisayarda remote-subtitle açık ve **Çeviriyi başlat** basılı olmalı; chiaki-ng PS5 görüntüsünü göstermeli.
+## Teknik notlar
 
-## Evde kontrol edilecekler
-
-- HDMI penceresinde (TVWindow) **gecikme**: oyun modu/120 Hz/VRR korunuyor mu? Korunmuyorsa kumandayla
-  oynarken tepki gecikir; o zaman HDMI'ı doğrudan izleyip altyazıyı yalnız bu uygulamada göstermek gibi
-  alternatifleri konuşalım.
-- Kutunun yeri: chiaki-ng tam ekranda değilse siyah şeritler hesaba katılır, ama bölge chiaki penceresinde
-  çizilmelidir.
-- Bilgisayar ile TV aynı ağda olmalı; Windows güvenlik duvarı 8765'e izin vermeli (kurulum sihirbazı ekler).
-
-## Tarayıcıda önizleme
-
-`tizen/index.html` dosyasını Chrome'da açın: TV API'leri olmadığı için HDMI atlanır; ayar ekranı ve çeviri
-katmanı denenebilir.
+- Samsung sertifika arayüzü belgelenmemiştir; Tizen Studio'nun Samsung Certificate Extension'ının yaptığı istekler
+  taklit edilir (`rsub/tizen_cert.py`). İmza biçimi: W3C widget dijital imzası (`rsub/tizen_sign.py`).
+- TV komutları (`rsub/tizen_device.py`): kurulum izni = `device-profile.xml` → `/home/developer`; kurulum =
+  `0 appinstall <paket> <yol>` (eski TV: `0 vd_appinstall`); başlatma = `0 execute <uygulama>`.
+- Tarayıcıda önizleme: `tizen/index.html` dosyasını açın (TV API'leri olmadığı için HDMI atlanır).

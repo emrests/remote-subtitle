@@ -2,14 +2,14 @@
 <html lang="tr">
 <head>
 <meta charset="utf-8">
-<title>remote-subtitle</title>
+<title>Remote Subtitle (TR)</title>
 <link rel="icon" href="icon.png">
 <link rel="stylesheet" href="subtitle.css">
 <link rel="stylesheet" href="panel.css">
 </head>
 <body>
 <header class="topbar">
-  <div class="brand"><span class="brand-mark" aria-hidden="true"></span>remote-subtitle</div>
+  <div class="brand"><img class="brand-mark" src="icon.png" alt="">Remote Subtitle (TR)</div>
   <div class="profile-switch">
     <label for="profile" class="muted">Oyun</label>
     <select id="profile"></select>
@@ -36,7 +36,7 @@
     <button data-tab="glossary">Terimler</button>
     <button data-tab="chars">Karakterler</button>
     <button data-tab="model">Çeviri modeli</button>
-    <button data-tab="conn">Bağlantı</button>
+    <button data-tab="conn">Kurulum</button>
     <p class="hint">Pencereyi kapatınca uygulama sistem tepsisinde çalışmaya devam eder.</p>
   </nav>
 
@@ -186,8 +186,8 @@
     <section id="tab-conn" hidden>
       <header>
         <div>
-          <h2>Bağlantı</h2>
-          <p class="muted">TV uygulamasında ya da ikinci ekrandaki tarayıcıda bu adresi açın.</p>
+          <h2>Kurulum</h2>
+          <p class="muted">PS5 bağlantısı, Samsung TV uygulamasının kurulumu ve gösterim adresi.</p>
         </div>
       </header>
       <div class="stack">
@@ -224,6 +224,33 @@
             </li>
           </ol>
           <p class="muted">PS5 aynı anda tek Remote Play bağlantısı kabul eder: chiaki-ng ya da PS Remote Play uygulaması açıksa kapatın. TV'de "Uzaktan Oynama bağlandı" bildirimi çıkmasın diye PS5'te <i>Uzaktan Oynama Bağlantı Durumunu Gizle</i>'yi açın.</p>
+        </div>
+        <div class="panel stack" id="tv-panel">
+          <h3>Samsung TV uygulaması <span class="tag" id="tv-tag">Kurulmadı</span></h3>
+          <p class="muted">Çeviri, TV'de PS5 görüntüsünün üstünde gösterilir. Uygulama TV'ye buradan kurulur; Tizen Studio gerekmez.</p>
+          <ol class="steps">
+            <li>
+              <b>TV'de Geliştirici Modu</b>
+              <p class="muted">TV'de <i>Uygulamalar</i> ekranını açın, kumandada sırayla <b>1 2 3 4 5</b> tuşlayın. <i>Developer mode</i>: <b>On</b>, <i>Host PC IP</i>: <b id="tv-pcip"></b>. Sonra TV'yi kapatıp açın (güç tuşuna basılı tutun).</p>
+            </li>
+            <li>
+              <b>TV'yi bul</b>
+              <div class="row"><button class="btn" id="btn-tv-scan">TV'leri ara</button>
+                <input type="text" id="tv-ip" placeholder="ya da TV'nin IP adresi" style="width:200px"><button class="btn" id="btn-tv-add">Ekle</button></div>
+              <table id="tv-list"><tbody></tbody></table>
+            </li>
+            <li>
+              <b>Samsung sertifikası</b> <span class="muted" id="tv-cert"></span>
+              <p class="muted">Samsung, geliştirici uygulamalarının yalnızca sertifikada adı geçen TV'lere kurulmasına izin verir. Kendi Samsung hesabınızla bir kez giriş yapın; yeni TV eklediğinizde sertifika yenilenir.</p>
+              <div class="row"><button class="btn" id="btn-tv-cert">Samsung ile giriş yap ve sertifika oluştur</button>
+                <button class="btn" id="btn-tv-import" title="Tizen Studio Certificate Manager ile oluşturulmuş sertifikayı kullan">Tizen Studio sertifikasını içe aktar</button></div>
+            </li>
+            <li>
+              <b>Kur</b>
+              <p class="muted">Listede TV'nin yanındaki <b>Kur</b> düğmesine basın. Uygulama TV'de açılır; sonraki seferlerde TV'nin <i>Uygulamalar</i> ekranından açın. Geri tuşu uygulamadan çıkar.</p>
+            </li>
+          </ol>
+          <p class="muted" id="tv-busy"></p>
         </div>
         <div class="panel stack">
           <h3>Remote Play (chiaki-ng) — yedek yol</h3>

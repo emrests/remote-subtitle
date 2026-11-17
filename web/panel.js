@@ -512,6 +512,62 @@ $("btn-ps5-use").onclick = () => act(async () => {
 $("btn-ps5-check").onclick = () => act(async () => { toast("PS5 yoklanıyor…"); await loadPs5($("ps5-host").value.trim()); });
 document.querySelector('nav button[data-tab="conn"]').addEventListener("click", () => act(() => loadPs5()));
 
+// ---------- Samsung TV kurulumu ----------
+function renderTv(d) {
+  S.tv = d;
+  $("tv-pcip").textContent = d.pcIp;
+  const cert = d.cert;
+  $("tv-cert").textContent = cert ? `— ${cert.name}, ${cert.duids.length} TV, ${cert.expires} tarihine kadar geçerli` : "— yok";
+  $("btn-tv-cert").textContent = cert ? "Samsung ile giriş yap ve sertifikayı yenile" : "Samsung ile giriş yap ve sertifika oluştur";
+  const rows = (d.tvs || []).map((t) => {
+    const tr = document.createElement("tr");
+    const ok = cert && cert.duids.includes(t.duid);
+    tr.innerHTML = `<td><b></b><br><span class="muted"></span></td><td><code></code></td><td><span class="tag ${ok ? "ok" : "warn"}">${ok ? "Sertifikada" : "Sertifikada yok"}</span></td><td><button class="btn primary">Kur</button></td>`;
+    tr.querySelector("b").textContent = t.model || "Samsung TV";
+    tr.querySelector("span.muted").textContent = t.ip;
+    tr.querySelector("code").textContent = t.duid || t.error || "";
+    tr.querySelector("button").disabled = !ok;
+    tr.querySelector("button").onclick = () => tvInstall(t.ip);
+    return tr;
+  });
+  $("tv-list").querySelector("tbody").replaceChildren(...rows);
+  const installed = (d.tvs || []).some((t) => t.installed);
+  $("tv-tag").className = "tag " + (installed ? "ok" : cert ? "warn" : "");
+  $("tv-tag").textContent = installed ? "Kuruldu" : cert ? "Sertifika hazır" : "Kurulmadı";
+  $("tv-busy").textContent = d.busy || "";
+}
+async function loadTv() { renderTv(await send("tv_state")); }
+async function tvScan(ip) {
+  $("tv-busy").textContent = "TV aranıyor…";
+  const r = await send("tv_scan", ip ? { ip } : {});
+  const errs = r.found.filter((f) => f.error);
+  if (!r.found.length) toast("Geliştirici modunda TV bulunamadı. Host PC IP doğru mu, TV yeniden başlatıldı mı?");
+  else if (errs.length) toast(errs[0].error);
+  await loadTv();
+}
+async function tvInstall(ip) {
+  $("tv-busy").textContent = "İmzalanıyor ve TV'ye kuruluyor…";
+  try {
+    await send("tv_install", { ip });
+    toast("Kuruldu: uygulama TV'de açıldı");
+  } finally { await loadTv(); }
+}
+$("btn-tv-scan").onclick = () => act(() => tvScan());
+$("btn-tv-add").onclick = () => act(() => tvScan($("tv-ip").value.trim()));
+$("btn-tv-cert").onclick = () => act(async () => {
+  $("tv-busy").textContent = "Tarayıcıda Samsung hesabınızla giriş yapın…";
+  try {
+    const c = await send("tv_create_cert");
+    toast(`Sertifika hazır: ${c.duids.length} TV`);
+  } finally { await loadTv(); }
+});
+$("btn-tv-import").onclick = () => act(async () => {
+  const c = await send("tv_import_tizen");
+  toast(`Sertifika içe aktarıldı: ${c.name}, ${c.duids.length} TV`);
+  await loadTv();
+});
+document.querySelector('nav button[data-tab="conn"]').addEventListener("click", () => act(loadTv));
+
 // ---------- başlat ----------
 connectSubtitles(`ws://${location.host}`, onMessage, (up, sock) => {
   if (up) { ws = sock; act(loadState); }

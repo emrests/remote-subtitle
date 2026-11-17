@@ -425,3 +425,36 @@ async def test_ps5_state_remembers_already_paired_host(app, port, monkeypatch=No
             assert r["ok"] and r["data"]["ps5"]["paired"] and app.rt.settings["ps5Host"] == "192.168.1.165"
     finally:
         ps5.status = orig
+
+
+def test_tv_package_has_pc_address_and_signatures(tmp_path):
+    import datetime, io, zipfile
+    from cryptography import x509
+    from cryptography.hazmat.primitives import hashes
+    from cryptography.x509.oid import NameOID
+    from rsub import tizen_cert
+    from rsub.tizen_sign import Signer
+    key = tizen_cert.new_key()
+    name = x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, "t")])
+    now = datetime.datetime.now(datetime.timezone.utc)
+    cert = (x509.CertificateBuilder().subject_name(name).issuer_name(name).public_key(key.public_key()).serial_number(1)
+            .not_valid_before(now).not_valid_after(now + datetime.timedelta(days=1)).sign(key, hashes.SHA256()))
+    s = Signer(key, [cert, cert])
+    wgt = web.build_tv_package(tizen_cert.TvCert(s, s, b"<Profile/>"), "192.168.68.110")
+    z = zipfile.ZipFile(io.BytesIO(wgt))
+    assert 'RSUB_DEFAULT_PC = "192.168.68.110"' in z.read("defaults.js").decode()
+    assert {"config.xml", "main.js", "index.html", "author-signature.xml", "signature1.xml"} <= set(z.namelist())
+
+
+@with_app
+async def test_tv_install_refuses_tv_missing_from_certificate(app, port):
+    from rsub import tizen_cert, tizen_device
+    orig = (tizen_cert.load, tizen_device.info)
+    tizen_cert.load = lambda: tizen_cert.TvCert(None, None, b"", ["AAAAAAAAAAAAA"])
+    tizen_device.info = lambda ip: {"ip": ip, "model": "QE75", "duid": "CPCGVGAG2CWJK"}
+    try:
+        async with connect(f"ws://127.0.0.1:{port}") as ws:
+            r = await _cmd(ws, cmd="tv_install", ip="192.168.68.111")
+            assert not r["ok"] and "sertifika" in r["error"].lower()
+    finally:
+        tizen_cert.load, tizen_device.info = orig

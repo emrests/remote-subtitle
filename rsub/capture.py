@@ -9,7 +9,7 @@ from PIL import Image
 
 user32 = ctypes.windll.user32
 dwmapi = ctypes.windll.dwmapi
-APP_TITLE = "remote-subtitle"
+APP_TITLE = "Remote Subtitle (TR)"  # pencere başlığı; kendi penceremiz kaynak listesinde görünmez
 HIDDEN = {APP_TITLE, "Program Manager"}
 
 

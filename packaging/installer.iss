@@ -1,5 +1,5 @@
 ; Inno Setup 6 kurulum betiği. Derleme: packaging/build.ps1
-#define AppName "remote-subtitle"
+#define AppName "Remote Subtitle (TR)"
 #define AppVersion "0.1.0"
 #define Port "8765"
 
@@ -7,7 +7,8 @@
 AppId={{6B7C2E1A-5D7F-4C8E-9A1B-2F3D4E5A6B7C}
 AppName={#AppName}
 AppVersion={#AppVersion}
-DefaultDirName={autopf}\{#AppName}
+DefaultDirName={autopf}\remote-subtitle
+emote-subtitle
 DefaultGroupName={#AppName}
 PrivilegesRequired=admin
 OutputDir=Output
@@ -48,7 +49,7 @@ Filename: "netsh.exe"; Parameters: "advfirewall firewall add rule name=""{#AppNa
 ; Son sayfa
 Filename: "https://github.com/chiaki-ng/chiaki-ng/releases"; Description: "chiaki-ng'yi (Remote Play) indirme sayfasını aç"; \
   Flags: postinstall shellexec skipifsilent unchecked runasoriginaluser
-Filename: "{app}\remote-subtitle.exe"; Description: "remote-subtitle'ı başlat"; Flags: postinstall nowait skipifsilent runasoriginaluser
+Filename: "{app}\remote-subtitle.exe"; Description: "{#AppName} uygulamasını başlat"; Flags: postinstall nowait skipifsilent runasoriginaluser
 
 [UninstallRun]
 Filename: "netsh.exe"; Parameters: "advfirewall firewall delete rule name=""{#AppName}"""; Flags: runhidden; RunOnceId: "fw"
