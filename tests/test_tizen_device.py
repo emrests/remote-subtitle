@@ -19,7 +19,7 @@ class FakeSdb:
             return "CPCGVGAG2CWJK\n"
         if "push" in args:
             return "1 file(s) pushed. 0 file(s) skipped."
-        if "appinstall" in args:
+        if "appinstall" in args or "vd_appinstall" in args:
             return self.install_out
         return ""
 
@@ -42,11 +42,21 @@ def test_install_pushes_then_appinstall(monkeypatch):
     fake = FakeSdb("spend time for wascmd is [1200]ms\ninstall completed\n")
     monkeypatch.setattr(td, "run", fake)
     td.install("1.2.3.4", b"PK")
-    inst = [c for c in fake.calls if "appinstall" in c][0]
-    assert inst[-4:] == ["0", "appinstall", "RmSubTvApp", "/home/owner/share/tmp/sdk_tools/tmp/RmSubTvApp.wgt"]
+    inst = [c for c in fake.calls if "vd_appinstall" in c][0]
+    assert inst[-4:] == ["0", "vd_appinstall", "RmSubTvApp", "/home/owner/share/tmp/sdk_tools/tmp/RmSubTvApp.wgt"]
 
 
-def test_install_falls_back_to_old_tv_command(monkeypatch):
+def test_install_accepts_2024_tv_output(monkeypatch):
+    monkeypatch.setattr(td, "run", FakeSdb("__return_cb req_id[1] pkg_type[wgt] pkgid[RmSubTvApp] key[end] val[ok]"))
+    td.install("1.2.3.4", b"PK")
+
+
+def test_permit_ignores_refused_path(monkeypatch):
+    monkeypatch.setattr(td, "run", lambda args, timeout=60: "error: failed to close '/home/developer/device-profile.xml': You cannot push files to this path.")
+    td.permit("1.2.3.4", b"<Profile/>")
+
+
+def test_install_falls_back_to_plain_appinstall(monkeypatch):
     fake = FakeSdb()
     outs = iter(["command not found", "install completed"])
     def run(args, timeout=60):
@@ -56,7 +66,7 @@ def test_install_falls_back_to_old_tv_command(monkeypatch):
         return fake(args, timeout)
     monkeypatch.setattr(td, "run", run)
     td.install("1.2.3.4", b"PK")
-    assert [c[-3] for c in fake.calls if "appinstall" in c or "vd_appinstall" in c] == ["appinstall", "vd_appinstall"]
+    assert [c[-3] for c in fake.calls if "appinstall" in c or "vd_appinstall" in c] == ["vd_appinstall", "appinstall"]
 
 
 def test_install_failure_explains_signature_problem(monkeypatch):

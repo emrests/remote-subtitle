@@ -14,6 +14,8 @@ from lxml import etree
 from rsub.tizen_sign import Signer, sign_wgt
 
 DS = "{http://www.w3.org/2000/09/xmldsig#}"
+PROP_DIGEST = {"AuthorSignature": "lpo8tUDs054eLlBQXiDPVDVKfw30ZZdtkRs1jd7H5K8=",
+               "DistributorSignature": "u/jU3U4Zm5ihTMSjKGlGYbWzDfRkGphPPHx3gJIYEJ4="}
 
 
 def _signer(cn):
@@ -44,8 +46,10 @@ def _verify(xml: bytes, files: dict, cert_key):
         uri = ref.get("URI")
         uris.append(uri)
         if uri == "#prop":
-            obj = root.find(DS + "Object")
-            data = etree.tostring(obj, method="c14n")
+            # Nesne her pakette aynı: Tizen Studio'nun ve TV'nin kabul ettiği sabit özetler (lxml c14n'i
+            # torunlara xmlns="" ekleyip yanlış özet veriyor, onunla doğrulanamaz)
+            assert ref.find(DS + "DigestValue").text == PROP_DIGEST[root.get("Id")]
+            continue
         else:
             from urllib.parse import unquote
             data = files[unquote(uri)]

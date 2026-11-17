@@ -20,7 +20,8 @@ from pathlib import Path
 PORT = 26101          # geliştirici modundaki TV'nin sdb portu
 PKG_ID = "RmSubTvApp"
 APP_ID = "RmSubTvApp.RemoteSubtitle"
-TMP_DIRS = ("/home/owner/share/tmp/sdk_tools/tmp", "/opt/usr/apps/tmp")
+SDK_TOOLS = "/home/owner/share/tmp/sdk_tools"
+TMP_DIRS = (SDK_TOOLS + "/tmp", "/opt/usr/apps/tmp")
 NO_WINDOW = 0x08000000  # CREATE_NO_WINDOW: komut penceresi yanıp sönmesin
 
 
@@ -95,8 +96,17 @@ def push(ip: str, data: bytes, remote: str) -> None:
 
 
 def permit(ip: str, device_profile: bytes) -> None:
-    """Tizen Studio'daki "Permit to install applications": sertifikanın TV listesini TV'ye bildirir."""
-    push(ip, device_profile, "/home/developer/device-profile.xml")
+    """Tizen Studio'daki "Permit to install applications": sertifikanın TV listesini TV'ye bildirir.
+    2024 TV'ler bu yola yazmayı reddediyor ve izne gerek duymuyor (DUID dağıtıcı sertifikasında): hata yok sayılır."""
+    try:
+        push(ip, device_profile, "/home/developer/device-profile.xml")
+    except RuntimeError:
+        pass
+
+
+def _installed(out: str) -> bool:
+    low = out.lower()
+    return "install completed" in low or "key[end] val[ok]" in low
 
 
 def install(ip: str, wgt: bytes, pkg_id: str = PKG_ID) -> str:
@@ -109,9 +119,12 @@ def install(ip: str, wgt: bytes, pkg_id: str = PKG_ID) -> str:
         except RuntimeError as e:
             last = str(e)
             continue
-        for cmd in ("appinstall", "vd_appinstall"):
-            out = shell(ip, "0", cmd, pkg_id, remote)
-            if "install completed" in out.lower() or "100%" in out:
+        # vd_appinstall (TV'nin uygulama servisi) uygulamayı TV menüsüne de ekler ve tam yol ister; appinstall
+        # (düz pkgcmd) kurar ama menüde görünmez, yolu da sdk_tools'a göre ister ("realpath fail")
+        rel = remote[len(SDK_TOOLS) + 1:] if remote.startswith(SDK_TOOLS + "/") else remote
+        for cmd, arg in (("vd_appinstall", remote), ("appinstall", rel)):
+            out = shell(ip, "0", cmd, pkg_id, arg)
+            if _installed(out):
                 return out
             last = out
             if "not found" not in out.lower() and "unknown" not in out.lower():

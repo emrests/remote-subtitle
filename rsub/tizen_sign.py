@@ -69,10 +69,10 @@ def _signature_xml(files: list[tuple[str, bytes]], signer: Signer, role: str, si
            f'<SignatureProperty Id="identifier" Target="#{sig_id}"><dsp:Identifier></dsp:Identifier></SignatureProperty>'
            f'</SignatureProperties></Object>')
     refs = "".join(_reference(quote(name, safe="/"), _digest(data)) for name, data in files)
-    # #prop özeti, nesnenin belge içindeki C14N 1.1 hali üzerinden (ad alanı Signature'dan miras): önce iskeleti kur
-    skeleton = (f'<Signature xmlns="{DSIG}" Id="{sig_id}">\n<SignedInfo></SignedInfo>\n{obj}\n</Signature>')
-    prop = etree.fromstring(skeleton.encode()).find(f"{{{DSIG}}}Object")
-    refs += _reference("#prop", _digest(etree.tostring(prop, method="c14n")), "http://www.w3.org/2006/12/xml-c14n11")
+    # #prop özeti, nesnenin belge içindeki C14N 1.1 hali: obj zaten kanonik; tek fark Signature'dan miras ad alanı.
+    # (lxml alt öğe c14n'i torunlara sahte xmlns="" ekliyor ve TV imzayı reddediyordu.)
+    prop_c14n = obj.replace('<Object Id="prop">', f'<Object xmlns="{DSIG}" Id="prop">', 1).encode()
+    refs += _reference("#prop", _digest(prop_c14n), "http://www.w3.org/2006/12/xml-c14n11")
     signed_info = (f'<SignedInfo>\n<CanonicalizationMethod Algorithm="http://www.w3.org/2001/10/xml-exc-c14n#"></CanonicalizationMethod>\n'
                    f'<SignatureMethod Algorithm="http://www.w3.org/2001/04/xmldsig-more#rsa-sha256"></SignatureMethod>\n'
                    f'{refs}</SignedInfo>')

@@ -34,7 +34,8 @@
       if (!pick) { toast("Bağlı HDMI kaynağı bulunamadı. PS5 açık mı?", 8000); return; }
       tizen.tvwindow.setSource(pick, function () {
         tizen.tvwindow.show(function () { /* gösterildi */ }, function (e) { toast("HDMI gösterilemedi: " + e.message, 8000); },
-          ["0px", "0px", "1920px", "1080px"], "MAIN");
+          ["0px", "0px", "1920px", "1080px"], "MAIN", "BEHIND");  // BEHIND: görüntü web katmanının altında
+        // (varsayılan FRONT; 2024 TV'de görüntü çeviri katmanını örtüyordu)
       }, function (e) { toast("HDMI seçilemedi: " + e.message, 8000); });
     }, function (e) { toast("Görüntü kaynakları okunamadı: " + e.message, 8000); });
   }
