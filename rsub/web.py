@@ -433,7 +433,9 @@ class App:
 
     async def cmd_tv_create_cert(self, msg):
         """Samsung girişi (tarayıcı) + sertifika; bilinen bütün TV'ler sertifikaya eklenir."""
-        duids = sorted({t["duid"] for t in self._tvs() if t.get("duid")} | set(msg.get("duids") or []))
+        cur = await asyncio.to_thread(tizen_cert.load)
+        duids = sorted({t["duid"] for t in self._tvs() if t.get("duid")} | set(msg.get("duids") or [])
+                       | set(cur.duids if cur else []))
         if not duids:
             raise RuntimeError("Önce TV'yi bulun: sertifika, TV'nin kimliğiyle oluşturulur")
         self.tv_busy = "Samsung girişi bekleniyor (tarayıcıda)…"
