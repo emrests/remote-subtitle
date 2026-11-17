@@ -105,6 +105,7 @@ class App:
         self._tv_cover = False  # TV'ye kutu gönderildi ve henüz kaldırılmadı
         self.clients: set = set()
         self.displays: set = set()  # /display adresinden bağlanan gösterim ekranları (TV, ikinci ekran)
+        self.display_pings: dict = {}  # gösterim ekranı -> son "buradayım" bildirimi (görünür mü, kaç kutu aldı)
         self.port = PORT
         self.auto_pulled = False
         self.ollama_started = False
@@ -206,7 +207,18 @@ class App:
     def status(self) -> dict:
         model = self.rt.settings["model"]
         return {**self.rt.status, "ollama": self.ollama, "model": model, "modelReady": model in self.models,
-                "ocrLang": self.ocr_lang, "clients": len(self.displays), "pull": self.pull_state}
+                "ocrLang": self.ocr_lang, "clients": len(self.displays), "displays": self.display_states(),
+                "pull": self.pull_state}
+
+    def display_states(self) -> list[dict]:
+        """Her gösterim ekranının iletişim durumu: age = son bildirimden beri saniye (None: hiç bildirmedi)."""
+        now = time.monotonic()
+        out = []
+        for ws in list(self.displays):
+            p = self.display_pings.get(ws)
+            out.append({"age": round(now - p["t"], 1), "visible": p["visible"], "tv": p["tv"], "covers": p["covers"]}
+                       if p else {"age": None, "visible": None, "tv": None, "covers": 0})
+        return out
 
     async def status_loop(self) -> None:
         while True:
@@ -256,12 +268,18 @@ class App:
         finally:
             self.clients.discard(ws)
             self.displays.discard(ws)
+            self.display_pings.pop(ws, None)
 
     async def _command(self, ws, raw) -> None:
         try:
             msg = json.loads(raw)
             mid = msg.get("id")
         except ValueError:
+            return
+        if msg.get("type") == "displayPing":  # gösterim ekranından (TV) yanıt beklemeyen bildirim
+            if ws in self.displays:
+                self.display_pings[ws] = {"t": time.monotonic(), "visible": bool(msg.get("visible")),
+                                          "tv": bool(msg.get("tv")), "covers": int(msg.get("covers") or 0)}
             return
         reply = {"type": "reply", "id": mid, "ok": False, "data": None, "error": None}
         if not is_local(ws):

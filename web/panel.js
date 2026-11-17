@@ -283,11 +283,28 @@ function renderTargets() {
     ? "PS5 kaynağında kullanılamaz: bilgisayarda oyun penceresi yok."
     : "Kaynağın üstünde, orijinal İngilizce altyazıyı kapatarak.";
   $("show-tv").checked = S.profile.showTv !== false;
-  const n = (S.status && S.status.clients) || 0;
+  const [cls, text, tip] = tvLink((S.status && S.status.displays) || []);
   const info = $("show-tv-info");
   info.replaceChildren();
-  const dot = document.createElement("span"); dot.className = "dot" + (n ? " on" : "");
-  info.append(dot, n ? `TV bağlı${n > 1 ? ` (${n} ekran)` : ""}` : "TV uygulaması açık değil");
+  const dot = document.createElement("span"); dot.className = "dot " + cls;
+  info.append(dot, text);
+  info.title = tip;
+}
+
+// TV iletişimi: bağlantı tek başına yetmez (uygulama arka plandayken de açık kalır); TV'deki sayfa 2 sn'de bir
+// "buradayım" der ve ekranda görünüp görünmediğini bildirir
+function tvLink(displays) {
+  if (!displays.length) return ["", "TV uygulaması açık değil", "TV'de Remote Subtitle uygulamasını açın"];
+  const d = displays.find((x) => x.tv) || displays[0];
+  const extra = displays.length > 1 ? ` (${displays.length} ekran)` : "";
+  if (d.age === null) return ["warn", "TV bağlı, yanıt bekleniyor" + extra,
+    "Bağlantı açık ama TV henüz bildirim göndermedi. Sürmesi halinde TV uygulamasını kapatıp açın."];
+  if (d.age > 6) return ["", `TV yanıt vermiyor (${Math.round(d.age)} sn)` + extra,
+    "Bağlantı açık görünüyor ama TV'deki sayfa bildirim göndermiyor: uygulama donmuş ya da kapanmış olabilir."];
+  if (!d.visible) return ["warn", "TV uygulaması arka planda: çeviri görünmez" + extra,
+    "TV'de kaynak HDMI'ye geçmiş ya da başka uygulama açılmış olabilir. Oyunu Remote Subtitle içinden izleyin."];
+  return ["on", `TV ile iletişim var · ekranda · ${d.covers} çeviri kutusu alındı` + extra,
+    "TV'deki sayfa 2 sn'de bir yanıt veriyor ve ekranda görünüyor."];
 }
 $("show-pc").onchange = (e) => { S.profile.showPc = e.target.checked; saveProfileSoon(); renderTargets(); };
 $("show-tv").onchange = (e) => { S.profile.showTv = e.target.checked; saveProfileSoon(); renderTargets(); };

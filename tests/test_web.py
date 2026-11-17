@@ -365,6 +365,22 @@ async def test_display_path_counts_as_screen(app, port):
         assert r["data"]["status"]["clients"] == 1  # panel sayılmaz, yalnız gösterim ekranı
 
 
+@with_app
+async def test_display_ping_reports_tv_link(app, port):
+    async with connect(f"ws://127.0.0.1:{port}/display") as d, connect(f"ws://127.0.0.1:{port}") as panel:
+        await d.recv()
+        r = await _cmd(panel, cmd="get_state")
+        assert r["data"]["status"]["displays"] == [{"age": None, "visible": None, "tv": None, "covers": 0}]
+        await d.send(json.dumps({"type": "displayPing", "visible": False, "tv": True, "covers": 7}))
+        r = await _cmd(panel, cmd="get_state")
+        (st,) = r["data"]["status"]["displays"]
+        assert st["visible"] is False and st["tv"] is True and st["covers"] == 7 and st["age"] < 2
+        # panel bağlantısından gelen bildirim gösterim ekranı sayılmaz
+        await panel.send(json.dumps({"type": "displayPing", "visible": True}))
+        r = await _cmd(panel, cmd="get_state")
+        assert len(r["data"]["status"]["displays"]) == 1
+
+
 def test_ps5_source_never_draws_pc_overlay_but_feeds_tv(monkeypatch):
     # PS5 kaynağında PC'de pencere yok: (0,0,1920,1080) kare koordinatı, ekranın sol üstü değil
     a = _overlay_app()

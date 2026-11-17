@@ -43,7 +43,18 @@
   function fitStage() { stage.style.transform = "scale(" + (frame.clientWidth / 1920) + ")"; }
   window.addEventListener("resize", fitStage); fitStage();
 
+  // "Buradayım" bildirimi: PC panelinde TV ile gerçekten iletişim var mı, sayfa ekranda mı görünür
+  var sock = null, nCovers = 0;
+  function ping() {
+    if (sock && sock.readyState === 1) {
+      sock.send(JSON.stringify({ type: "displayPing", visible: !document.hidden, tv: !!q.get("tv"), covers: nCovers }));
+    }
+  }
+  setInterval(ping, 2000);
+  document.addEventListener("visibilitychange", ping);
+
   function showCover(msg) {
+    if (msg.box) nCovers++;
     if (textMode) return;
     if (!msg.box) { cover.style.display = "none"; return; }
     var b = msg.box;
@@ -58,7 +69,9 @@
     if (!textMode) return;
     if (msg.type === "style") { style = msg.style; renderSubtitle(sub, lines, style); }
     if (msg.type === "lines") { lines = msg.lines; renderSubtitle(sub, lines, style); }
-  }, function (up) {
+  }, function (up, ws) {
+    sock = up ? ws : null;
+    if (up) ping();
     statusEl.textContent = up ? "" : "PC'ye bağlanılamıyor (" + host + "), yeniden deneniyor…";
     if (!up) cover.style.display = "none";
   });
