@@ -236,8 +236,16 @@ document.querySelectorAll("nav button[data-tab]").forEach((b) => {
 async function loadSources() {
   const list = await act(() => send("list_sources")) || [];
   const cur = S.profile.source;
-  const opts = list.map((s) => new Option(s.label, s.id, false, s.id === cur));
-  if (!list.some((s) => s.id === cur)) opts.unshift(new Option(`${cur} (şu an açık değil)`, cur, false, true));
+  const opts = [];
+  if (!list.some((s) => s.id === cur)) opts.push(new Option(`${cur} (şu an açık değil)`, cur, false, true));
+  for (const name of ["PS5", "Ekranlar", "Uygulama pencereleri"]) {
+    const items = list.filter((s) => (s.group || "Uygulama pencereleri") === name);
+    if (!items.length) continue;
+    const g = document.createElement("optgroup");
+    g.label = name;
+    g.append(...items.map((s) => new Option(s.label, s.id, false, s.id === cur)));
+    opts.push(g);
+  }
   $("source").replaceChildren(...opts);
 }
 $("btn-sources").onclick = loadSources;

@@ -305,7 +305,7 @@ class App:
     async def cmd_list_sources(self, msg):
         found = await asyncio.to_thread(capture.list_sources)
         host = self.rt.settings.get("ps5Host")
-        return ([{"id": ps5.SOURCE, "label": f"PS5 — doğrudan ({host})"}] if host else []) + found
+        return ([{"id": ps5.SOURCE, "label": f"PS5 — doğrudan ({host})", "group": "PS5"}] if host else []) + found
 
     async def cmd_snapshot(self, msg):
         if msg["source"] == ps5.SOURCE:

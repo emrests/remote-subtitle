@@ -27,7 +27,17 @@ def set_dpi_aware() -> None:
         pass
 
 
-def _windows() -> list[tuple[int, str]]:
+SKIP_CLASSES = {"CabinetWClass", "ExploreWClass"}  # Dosya Gezgini klasör pencereleri
+MIN_W, MIN_H = 320, 180  # bundan küçük pencere oyun/video olamaz (iletişim kutuları, araç pencereleri)
+
+
+def useful_window(title: str, cls: str, w: int, h: int) -> bool:
+    """Kaynak listesinde gösterilmeye değer pencere: klasör değil, oyun görüntüsü sığacak kadar büyük."""
+    return cls not in SKIP_CLASSES and w >= MIN_W and h >= MIN_H
+
+
+def _windows(all_windows: bool = True) -> list[tuple[int, str]]:
+    """all_windows=False: yalnız kaynak listesine uygun olanlar (pick_window her pencereyi aramaya devam eder)."""
     found = []
 
     @ctypes.WINFUNCTYPE(wintypes.BOOL, wintypes.HWND, wintypes.LPARAM)
@@ -37,6 +47,13 @@ def _windows() -> list[tuple[int, str]]:
             buf = ctypes.create_unicode_buffer(n + 1)
             user32.GetWindowTextW(hwnd, buf, n + 1)
             if buf.value not in HIDDEN and not _cloaked(hwnd):
+                if not all_windows:
+                    cls = ctypes.create_unicode_buffer(256)
+                    user32.GetClassNameW(hwnd, cls, 256)
+                    r = wintypes.RECT()
+                    user32.GetClientRect(hwnd, ctypes.byref(r))
+                    if not useful_window(buf.value, cls.value, r.right, r.bottom):
+                        return True
                 found.append((hwnd, buf.value))
         return True
 
@@ -46,9 +63,9 @@ def _windows() -> list[tuple[int, str]]:
 
 def list_sources() -> list[dict]:
     with mss.MSS() as s:
-        mons = [{"id": f"monitor:{i}", "label": f"Monitör {i} ({m['width']}×{m['height']})"}
+        mons = [{"id": f"monitor:{i}", "label": f"Monitör {i} ({m['width']}×{m['height']})", "group": "Ekranlar"}
                 for i, m in enumerate(s.monitors[1:], start=1)]
-    return mons + [{"id": title, "label": title} for _, title in _windows()]
+    return mons + [{"id": title, "label": title, "group": "Uygulama pencereleri"} for _, title in _windows(False)]
 
 
 def pick_window(windows: list[tuple[int, str]], source: str) -> int | None:

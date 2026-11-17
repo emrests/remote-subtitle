@@ -53,3 +53,16 @@ def test_video_frame_letterboxed_in_wider_window():
     assert video_frame((0, 0, 1920, 1080)) == (0, 0, 1920, 1080)
     # daha dar pencere: yanlarda şerit
     assert video_frame((0, 0, 1000, 1000)) == (0, 219, 1000, 562)
+
+
+def test_source_windows_skip_folders_and_tiny_windows():
+    from rsub.capture import useful_window
+    assert useful_window("chiaki-ng", "Qt5152QWindowIcon", 1920, 1080)
+    assert useful_window("(2) YouTube - Google Chrome", "Chrome_WidgetWin_1", 1600, 900)
+    assert not useful_window("assets - Dosya Gezgini", "CabinetWClass", 1200, 800)   # klasör penceresi
+    assert not useful_window("Trellix Endpoint Security", "#32770", 300, 120)        # oyun olamayacak kadar küçük
+
+
+def test_sources_are_grouped():
+    groups = {s["group"] for s in list_sources()}
+    assert "Ekranlar" in groups and groups <= {"Ekranlar", "Uygulama pencereleri"}

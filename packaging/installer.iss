@@ -8,7 +8,6 @@ AppId={{6B7C2E1A-5D7F-4C8E-9A1B-2F3D4E5A6B7C}
 AppName={#AppName}
 AppVersion={#AppVersion}
 DefaultDirName={autopf}\remote-subtitle
-emote-subtitle
 DefaultGroupName={#AppName}
 PrivilegesRequired=admin
 OutputDir=Output
