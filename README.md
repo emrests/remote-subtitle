@@ -157,3 +157,7 @@ Sürüm numarası: `packaging/installer.iss` (`AppVersion`) ve `tizen/config.xml
 - Yakalama: 4–14 ms, OCR (Windows, İngilizce paket olmadan): ortalama 4 ms / kare. 9 satırdan 8'i doğru okundu ("big fella" → "big fener").
 - Çeviri (TranslateGemma 12B, RTX 5080 Laptop, tamamı VRAM'de): satır başına 225–471 ms. Ollama'nın kendi süresi ~250 ms;
   `localhost` yerine `127.0.0.1` kullanmak şart (Windows önce ::1'i dener, istek başına ~2 sn kaybettiriyordu).
+
+## Lisans
+
+GPL-3.0 (bkz. [LICENSE](LICENSE)). Kurulum dosyasına gömülü üçüncü taraf bileşenler ve lisansları: [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).

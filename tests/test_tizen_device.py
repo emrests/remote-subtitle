@@ -14,9 +14,9 @@ class FakeSdb:
         if args[0] == "connect":
             return f"connecting to {args[1]}:26101 ...\nconnected to {args[1]}:26101\n"
         if args[0] == "devices":
-            return "List of devices attached \n192.168.68.111:26101\tdevice    \tQE75QN800DTXTK\n"
+            return "List of devices attached \n192.168.1.60:26101\tdevice    \tQE55TEST00000\n"
         if args[-2:] == ["0", "getduid"]:
-            return "CPCGVGAG2CWJK\n"
+            return "TESTDUID12345\n"
         if "push" in args:
             return "1 file(s) pushed. 0 file(s) skipped."
         if "appinstall" in args or "vd_appinstall" in args:
@@ -27,7 +27,7 @@ class FakeSdb:
 def test_info_reads_model_and_duid(monkeypatch):
     fake = FakeSdb()
     monkeypatch.setattr(td, "run", fake)
-    assert td.info("192.168.68.111") == {"ip": "192.168.68.111", "model": "QE75QN800DTXTK", "duid": "CPCGVGAG2CWJK"}
+    assert td.info("192.168.1.60") == {"ip": "192.168.1.60", "model": "QE55TEST00000", "duid": "TESTDUID12345"}
 
 
 def test_permit_pushes_profile_to_developer_home(monkeypatch):

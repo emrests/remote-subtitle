@@ -16,16 +16,16 @@ def test_dpapi_roundtrip():
 
 def test_author_csr_matches_certificate_manager_format():
     # Certificate Manager'ın gönderdiği: yalnız CN, RSA 2048, SHA-512
-    csr = x509.load_pem_x509_csr(tc.author_csr(tc.new_key(), "EmreSts"))
-    assert csr.subject.get_attributes_for_oid(NameOID.COMMON_NAME)[0].value == "EmreSts"
+    csr = x509.load_pem_x509_csr(tc.author_csr(tc.new_key(), "TestUser"))
+    assert csr.subject.get_attributes_for_oid(NameOID.COMMON_NAME)[0].value == "TestUser"
     assert csr.signature_hash_algorithm.name == "sha512" and csr.public_key().key_size == 2048
 
 
 def test_distributor_csr_lists_tv_ids():
-    csr = x509.load_pem_x509_csr(tc.distributor_csr(tc.new_key(), "a@b.com", ["CPCGVGAG2CWJK", "ABCDEFGHIJKLM"]))
+    csr = x509.load_pem_x509_csr(tc.distributor_csr(tc.new_key(), "a@b.com", ["TESTDUID12345", "ABCDEFGHIJKLM"]))
     san = csr.extensions.get_extension_for_class(x509.SubjectAlternativeName).value
     assert san.get_values_for_type(x509.UniformResourceIdentifier) == [
-        "URN:tizen:packageid=", "URN:tizen:deviceid=CPCGVGAG2CWJK", "URN:tizen:deviceid=ABCDEFGHIJKLM"]
+        "URN:tizen:packageid=", "URN:tizen:deviceid=TESTDUID12345", "URN:tizen:deviceid=ABCDEFGHIJKLM"]
     assert csr.subject.get_attributes_for_oid(NameOID.COMMON_NAME)[0].value == "TizenSDK"
     assert csr.subject.get_attributes_for_oid(NameOID.EMAIL_ADDRESS)[0].value == "a@b.com"
 
@@ -71,30 +71,30 @@ def _issued(cn, duids=()):
 
 def test_save_load_keeps_keys_encrypted_and_reports_tvs(tmp_path, monkeypatch):
     monkeypatch.setenv("RSUB_HOME", str(tmp_path))
-    ak, ac = _issued("EmreSts")
-    dk, dc = _issued("TizenSDK", ["CPCGVGAG2CWJK"])
+    ak, ac = _issued("TestUser")
+    dk, dc = _issued("TizenSDK", ["TESTDUID12345"])
     c = tc.save(ak, ac, dk, dc, b"<Profile/>")
-    assert c.info()["name"] == "EmreSts" and c.duids == ["CPCGVGAG2CWJK"]
+    assert c.info()["name"] == "TestUser" and c.duids == ["TESTDUID12345"]
     assert b"PRIVATE KEY" not in (tmp_path / "tv-cert" / "author.key.dpapi").read_bytes()
     assert len(tc.load().author.certs) == 2  # kendi + Samsung ara CA
 
 
 def test_add_tvs_keeps_author_and_merges_ids(tmp_path, monkeypatch):
     monkeypatch.setenv("RSUB_HOME", str(tmp_path))
-    ak, ac = _issued("EmreSts")
-    dk, dc = _issued("TizenSDK", ["CPCGVGAG2CWJK"])
+    ak, ac = _issued("TestUser")
+    dk, dc = _issued("TizenSDK", ["TESTDUID12345"])
     tc.save(ak, ac, dk, dc, b"<Profile/>")
     asked = {}
 
     def fake_dist(access, csr):
         ids = x509.load_pem_x509_csr(csr).extensions.get_extension_for_class(x509.SubjectAlternativeName).value
         asked["duids"] = [u for u in ids.get_values_for_type(x509.UniformResourceIdentifier) if "deviceid" in u]
-        return _issued("TizenSDK", ["ABCDEFGHIJKLM", "CPCGVGAG2CWJK"])[1], b"<Profile/>"
+        return _issued("TizenSDK", ["ABCDEFGHIJKLM", "TESTDUID12345"])[1], b"<Profile/>"
 
     monkeypatch.setattr(tc, "request_author", lambda *a: pytest.fail("yazar yenilenmemeli"))
     monkeypatch.setattr(tc, "request_distributor", fake_dist)
     c = tc.add_tvs(tc.Access("T", "U", "a@b.com"), ["ABCDEFGHIJKLM"])
-    assert asked["duids"] == ["URN:tizen:deviceid=ABCDEFGHIJKLM", "URN:tizen:deviceid=CPCGVGAG2CWJK"]
+    assert asked["duids"] == ["URN:tizen:deviceid=ABCDEFGHIJKLM", "URN:tizen:deviceid=TESTDUID12345"]
     assert c.author.certs[0].public_bytes(serialization.Encoding.PEM) == ac
 
 

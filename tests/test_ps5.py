@@ -49,11 +49,11 @@ def test_ps5_source_reads_region_of_stream_frame(monkeypatch):
         return ""
     monkeypatch.setattr(pipeline, "ocr", fake_ocr)
     rects = []
-    rt = Runtime(settings={"model": "m", "running": True, "ps5Host": "192.168.1.165"},
+    rt = Runtime(settings={"model": "m", "running": True, "ps5Host": "192.168.1.50"},
                  profile=copy.deepcopy(P), emit=lambda m: None)
     rt.on_frame = lambda rect, img=None: rects.append(rect)
     _run(rt)
-    assert fake.asked[0] == "192.168.1.165"
+    assert fake.asked[0] == "192.168.1.50"
     assert shots and shots[0] == (1920, 540)
     assert rects[0] == (0, 0, 1920, 1080) and rt.status["window"] is True
 

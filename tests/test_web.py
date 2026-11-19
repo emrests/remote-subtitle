@@ -396,13 +396,13 @@ async def test_ps5_listed_and_snapshot_from_stream(app, port):
     fake = _FakeStream(Image.new("RGB", (1920, 1080), (40, 40, 40)))
     ps5_stream, ps5.stream = ps5.stream, fake
     try:
-        app.rt.settings["ps5Host"] = "192.168.1.165"
+        app.rt.settings["ps5Host"] = "192.168.1.50"
         async with connect(f"ws://127.0.0.1:{port}") as ws:
             r = await _cmd(ws, cmd="list_sources")
-            assert r["data"][0]["id"] == "ps5" and "192.168.1.165" in r["data"][0]["label"]
+            assert r["data"][0]["id"] == "ps5" and "192.168.1.50" in r["data"][0]["label"]
             r = await _cmd(ws, id=2, cmd="snapshot", source="ps5")
             assert r["ok"] and r["data"]["width"] == 1920 and r["data"]["image"].startswith("data:image/jpeg")
-            assert fake.hosts == ["192.168.1.165"]
+            assert fake.hosts == ["192.168.1.50"]
     finally:
         ps5.stream = ps5_stream
 
@@ -423,8 +423,8 @@ async def test_ps5_state_remembers_already_paired_host(app, port, monkeypatch=No
     try:
         app.rt.settings["ps5Host"] = ""
         async with connect(f"ws://127.0.0.1:{port}") as ws:
-            r = await _cmd(ws, cmd="ps5_state", host="192.168.1.165")
-            assert r["ok"] and r["data"]["ps5"]["paired"] and app.rt.settings["ps5Host"] == "192.168.1.165"
+            r = await _cmd(ws, cmd="ps5_state", host="192.168.1.50")
+            assert r["ok"] and r["data"]["ps5"]["paired"] and app.rt.settings["ps5Host"] == "192.168.1.50"
     finally:
         ps5.status = orig
 
@@ -442,9 +442,9 @@ def test_tv_package_has_pc_address_and_signatures(tmp_path):
     cert = (x509.CertificateBuilder().subject_name(name).issuer_name(name).public_key(key.public_key()).serial_number(1)
             .not_valid_before(now).not_valid_after(now + datetime.timedelta(days=1)).sign(key, hashes.SHA256()))
     s = Signer(key, [cert, cert])
-    wgt = web.build_tv_package(tizen_cert.TvCert(s, s, b"<Profile/>"), "192.168.68.110")
+    wgt = web.build_tv_package(tizen_cert.TvCert(s, s, b"<Profile/>"), "192.168.1.40")
     z = zipfile.ZipFile(io.BytesIO(wgt))
-    assert 'RSUB_DEFAULT_PC = "192.168.68.110"' in z.read("defaults.js").decode()
+    assert 'RSUB_DEFAULT_PC = "192.168.1.40"' in z.read("defaults.js").decode()
     assert {"config.xml", "main.js", "index.html", "author-signature.xml", "signature1.xml"} <= set(z.namelist())
 
 
@@ -453,10 +453,10 @@ async def test_tv_install_refuses_tv_missing_from_certificate(app, port):
     from rsub import tizen_cert, tizen_device
     orig = (tizen_cert.load, tizen_device.info)
     tizen_cert.load = lambda: tizen_cert.TvCert(None, None, b"", ["AAAAAAAAAAAAA"])
-    tizen_device.info = lambda ip: {"ip": ip, "model": "QE75", "duid": "CPCGVGAG2CWJK"}
+    tizen_device.info = lambda ip: {"ip": ip, "model": "QE75", "duid": "TESTDUID12345"}
     try:
         async with connect(f"ws://127.0.0.1:{port}") as ws:
-            r = await _cmd(ws, cmd="tv_install", ip="192.168.68.111")
+            r = await _cmd(ws, cmd="tv_install", ip="192.168.1.60")
             assert not r["ok"] and "sertifika" in r["error"].lower()
     finally:
         tizen_cert.load, tizen_device.info = orig

@@ -42,7 +42,7 @@ PROFILE_URL = "https://svdca.samsungqbe.com/apis/v1/distributors"
 CA_DIR = Path(__file__).parent / "tv_ca"
 AUTHOR_CA = "vd_tizen_dev_author_ca.cer"
 DISTRIBUTOR_CA = "vd_tizen_dev_public2.crt"
-DUID = re.compile(r"^[A-Z0-9]{13}$")  # örn. CPCGVGAG2CWJK
+DUID = re.compile(r"^[A-Z0-9]{13}$")  # örn. TESTDUID12345
 
 
 # --- DPAPI (Windows kullanıcısına bağlı şifreleme; Certificate Manager da .pwd dosyalarında bunu kullanır) ---

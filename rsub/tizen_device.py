@@ -51,7 +51,7 @@ def serial(ip: str) -> str:
 
 
 def scan(networks: list[str], timeout: float = 0.5) -> list[str]:
-    """Verilen ağlarda (ör. "192.168.68.0/24") sdb portu açık cihazlar: geliştirici modundaki TV'ler."""
+    """Verilen ağlarda (ör. "192.168.1.0/24") sdb portu açık cihazlar: geliştirici modundaki TV'ler."""
     hosts = [str(h) for n in networks for h in ipaddress.ip_network(n, strict=False).hosts()]
 
     def probe(ip):

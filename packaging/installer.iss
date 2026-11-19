@@ -30,6 +30,8 @@ Name: "desktopicon"; Description: "Masaüstüne kısayol koy"; GroupDescription:
 
 [Files]
 Source: "..\dist\remote-subtitle\*"; DestDir: "{app}"; Flags: recursesubdirs ignoreversion
+Source: "..\LICENSE"; DestDir: "{app}"; DestName: "LICENSE.txt"; Flags: ignoreversion
+Source: "..\THIRD_PARTY_NOTICES.md"; DestDir: "{app}"; Flags: ignoreversion
 ; OllamaSetup.exe (~1.9 GB) gömülmez: yalnızca eksikse kurulum sırasında indirilir (aşağıda [Code])
 
 [Icons]
