@@ -356,6 +356,8 @@ class App:
                 if self.rt.model_ready and self.rt.status["error"] and "hazır değil" in self.rt.status["error"]:
                     self.rt.status["error"] = None
                 self.maybe_auto_pull()
+                if self.dub and (self.rt.profile.get("dub") or {}).get("on"):
+                    self.dub.warm()
                 self.broadcast({"type": "status", "status": self.status()})
             except Exception as e:  # durum döngüsü de sunucuyu öldürmesin
                 self.rt.status["error"] = f"Durum hatası: {e}"
