@@ -2,7 +2,6 @@
 
 Uygulamayla stdin/stdout üzerinden satır satır JSON konuşur; ağır bağımlılıklar uygulamanın kendisine girmez,
 işçi çökse de altyazı sürer. Komutlar:
-  {"op": "warm"}                                          → {"ready": true} model yüklendi
   {"op": "say", "id", "text", "conds": yol|None, "gain"}   → {"id", "wav": yol, "ms"}
   {"op": "listen", "on": bool}                            → (yanıt yok) oyun sesini halka belleğe kaydet / dur
   {"op": "clip", "speaker", "start", "end", "out"}        → {"sampled": ad, "seconds"} ya da {"cloned": ad, "out"}
@@ -75,19 +74,7 @@ class Worker:
             from chatterbox.mtl_tts import ChatterboxMultilingualTTS
             self.model = ChatterboxMultilingualTTS.from_pretrained(device="cuda")
             self.default = self.model.conds
-            # Modelin ses sınırı sabit 1000 birim (~40 sn): kısa metinde susmayı kaçırıp uzun anlamsız ses üretiyordu
-            # ("Siktir git!" → 3,3 sn). Sınır metin uzunluğuna göre (cap) konur.
-            orig = self.model.t3.inference
-            self.model.t3.inference = lambda *a, **k: orig(*a, **{**k, "max_new_tokens": self.cap})
-            send({"ready": True})
         return self.model
-
-    cap = 1000
-
-    def generate(self, text: str):
-        """25 ses birimi/sn; en yavaş konuşma ~8 harf/sn + 0,8 sn pay (ölçüm: kısa replikler 1-2 sn'de biter)."""
-        self.cap = int(25 * (len(text) / 8 + 0.8))
-        return self.tts().generate(text, language_id="tr", cfg_weight=0.3)
 
     def say(self, msg):
         import soundfile
@@ -101,7 +88,7 @@ class Worker:
             m.conds = self.conds[path]
         else:
             m.conds = self.default
-        wav = self.generate(msg["text"]) * float(msg.get("gain", 1.0))
+        wav = m.generate(msg["text"], language_id="tr", cfg_weight=0.3) * float(msg.get("gain", 1.0))
         fd, out = tempfile.mkstemp(suffix=".wav", prefix="rsub-dub-")
         os.close(fd)
         soundfile.write(out, wav.clamp(-1, 1).squeeze(0).cpu().numpy(), m.sr, subtype="PCM_16")
@@ -146,13 +133,11 @@ class Worker:
 
 def main():
     w = Worker()
-    send({"started": True})
+    send({"ready": True})
     for raw in sys.stdin:
         try:
             msg = json.loads(raw)
-            if msg["op"] == "warm":  # yükle ve bir kez üret: ekran kartının ilk üretim ısınması ilk repliğe düşmesin
-                w.generate("Hazır.")
-            elif msg["op"] == "say":
+            if msg["op"] == "say":
                 w.say(msg)
             elif msg["op"] == "listen":
                 w.rec.on = bool(msg["on"])

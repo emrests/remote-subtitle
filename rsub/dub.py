@@ -32,27 +32,6 @@ def voice_path(profile: str, speaker: str) -> Path:
     return store.home() / "voices" / h(profile) / (h(speaker) + ".pt")
 
 
-MIN_LETTERS = 3  # 2 harfli metni model seslendiremiyor ("Ne?", "Ha?" → IndexError; dolguyla 3-19 sn anlamsız ses)
-FIRST_MIN, FIRST_MAX = 3, 5  # ilk parça: 3-5 kelime (ölçüm: tam cümle 2,8 sn'de, 3 kelime 1,9 sn'de sese başlıyor)
-
-
-def split_first(text: str) -> list[str]:
-    """Repliği iki parçaya böler: kısa ilk parça hemen üretilip çalınır, kalanı o çalarken üretilir.
-    İlk parça 3-5 kelimede bir noktalama varsa orada biter (tonlama kopmasın). Kısa replik bölünmez.
-    Kelime kelime değil: her parça ~0,9 sn sabit bedel öder ve çok kısa girdide model fazladan ses üretiyor."""
-    words = text.split()
-    # noktalamada: en az 2 kelime sonra, arkada en az 2 kelime kalıyorsa ("Aynasızlar geliyor, | kaçmamız lazım!").
-    # Önce cümle sonu, yoksa virgül: "Sakin ol, kanka. | Kimseye..." (hitap cümlesinden kopmasın)
-    ok = [i for i in range(2, FIRST_MAX + 1) if i <= len(words) - 2]
-    cut = (next((i for i in ok if words[i - 1][-1] in ".!?…"), None)
-           or next((i for i in ok if words[i - 1][-1] in ",;:"), None))
-    if cut is None:
-        if len(words) <= FIRST_MAX + 2:
-            return [text]
-        cut = FIRST_MAX - 1
-    return [" ".join(words[:cut]), " ".join(words[cut:])]
-
-
 def wav_seconds(path: str) -> float:
     with wave.open(path) as w:
         return w.getnframes() / w.getframerate()
@@ -83,11 +62,8 @@ class Dubber:
         self.proc = None
         self.lock = threading.Lock()
         self.next_id = 1
-        self.busy = False  # işçi bir parçayı seslendiriyor
-        self.current: dict | None = None  # seslendirilen satırın kalan parçaları
+        self.busy = False  # işçi bir satırı seslendiriyor
         self.pending: dict | None = None  # sıradaki tek satır
-        self.cache: dict = {}  # (parça, ses, düzey) -> wav: tekrar eden replik ("Hey!") anında çalar
-        self.warmed = False
         self.jobs: dict = {}
         self.playing_until = 0.0
         self.played: list = []  # (başlangıç, bitiş): kendi sesimiz örneğe karışmasın
@@ -115,7 +91,7 @@ class Dubber:
             self.busy = False
 
     def handle(self, msg: dict) -> None:
-        if msg.get("ready"):  # model ekran kartına yüklendi
+        if msg.get("ready"):
             self.status.update(ready=True, error=None)
         elif "sampled" in msg:
             self.status["samples"][msg["sampled"]] = msg["seconds"]
@@ -129,53 +105,26 @@ class Dubber:
                 self.status["error"] = msg["error"]
             elif job:
                 self.status.update(lastMs=msg["ms"], error=None)
-                if len(self.cache) > 300:
-                    self.cache.clear()
-                self.cache[job["key"]] = msg["wav"]
                 self._play(msg["wav"], job)
             with self.lock:
                 self.busy = False
             self._pump()
 
     # --- seslendirme ---
-    def warm(self) -> None:
-        """Dublaj açılınca modeli hemen yükle: ilk replik ~12 sn beklemesin."""
-        if not self.warmed:
-            self.warmed = True
-            try:
-                self._send({"op": "warm"})
-            except OSError as e:
-                self.status["error"] = f"Dublaj başlatılamadı: {e}"
-
     def say(self, text: str, conds: str | None, gain: float = 1.0, **job) -> None:
-        if sum(c.isalpha() for c in text) < MIN_LETTERS:  # "Ne?", "Ha?": model seslendiremiyor (hata), atla
-            return
         with self.lock:
-            self.pending = {"parts": split_first(text), "conds": conds, "gain": gain, **job}
+            self.pending = {"text": text, "conds": conds, "gain": gain, **job}
         self._pump()
 
     def _pump(self) -> None:
-        while True:
-            with self.lock:
-                if self.busy:
-                    return
-                if not (self.current and self.current["parts"]):  # satır bitti: sıradakine geç
-                    self.current, self.pending = self.pending, None
-                if not self.current:
-                    return
-                line = self.current
-                text = line["parts"].pop(0)
-                job = {**{k: v for k, v in line.items() if k != "parts"}, "text": text,
-                       "key": (text, line["conds"], line["gain"])}
-                wav = self.cache.get(job["key"])
-                if wav and os.path.exists(wav):  # önbellekte: işçiye gitmeden çal
-                    self._play(wav, job)
-                    continue
-                jid, self.next_id, self.busy = self.next_id, self.next_id + 1, True
-                self.jobs[jid] = job
-            break
+        with self.lock:
+            if self.busy or not self.pending:
+                return
+            job, self.pending, self.busy = self.pending, None, True
+            jid, self.next_id = self.next_id, self.next_id + 1
+            self.jobs[jid] = job
         try:
-            self._send({"op": "say", "id": jid, "text": text, "conds": job["conds"], "gain": job["gain"]})
+            self._send({"op": "say", "id": jid, "text": job["text"], "conds": job["conds"], "gain": job["gain"]})
         except OSError as e:
             self.status["error"] = f"Dublaj başlatılamadı: {e}"
             with self.lock:

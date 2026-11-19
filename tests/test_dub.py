@@ -43,12 +43,12 @@ def test_queue_keeps_one_pending_and_newest_wins(tmp_path):
     d, proc, played, _ = _dubber(tmp_path)
     d.say("bir", None)
     d.say("iki", None)
-    d.say("dört", None)  # "iki" beklerken geldi: onun yerine geçer
+    d.say("üç", None)  # "iki" beklerken geldi: onun yerine geçer
     says = [m for m in proc.sent if m["op"] == "say"]
     assert [m["text"] for m in says] == ["bir"]
     d.handle({"id": says[0]["id"], "wav": _wav(tmp_path / "a.wav"), "ms": 900})
     says = [m for m in proc.sent if m["op"] == "say"]
-    assert [m["text"] for m in says] == ["bir", "dört"] and d.status["lastMs"] == 900
+    assert [m["text"] for m in says] == ["bir", "üç"] and d.status["lastMs"] == 900
 
 
 def test_own_playback_not_sampled(tmp_path):
@@ -105,36 +105,3 @@ def test_app_works_without_dub_env(monkeypatch):
     a.rt.profile["dub"]["on"] = True
     a.dub_lines([{"speaker": None, "color": None, "en": "x", "tr": "Selam."}])  # çökmez
     assert a.status()["dub"] == {"available": False}
-
-
-def test_split_first_short_chunk_at_punctuation():
-    assert dub.split_first("Aynasızlar geliyor, kaçmamız lazım!") == ["Aynasızlar geliyor,", "kaçmamız lazım!"]
-    assert dub.split_first("Siktir git, lan!") == ["Siktir git, lan!"]  # virgülden sonra tek kelime: bölünmez
-    assert dub.split_first("Bu adamı tanıyor musun?") == ["Bu adamı tanıyor musun?"]  # noktalama yok, kısa
-    assert dub.split_first("Sakin ol, kanka. Kimseye vay be deme lüksün yok şu an.") == [
-        "Sakin ol, kanka.", "Kimseye vay be deme lüksün yok şu an."]
-    assert dub.split_first("Bu gece bu vurgunu yapıyoruz ve para kapıyoruz yalan yok") == [
-        "Bu gece bu vurgunu", "yapıyoruz ve para kapıyoruz yalan yok"]  # noktalama yok: 4 kelime
-
-
-def test_line_parts_in_order_and_cache_skips_worker(tmp_path):
-    d, proc, played, _ = _dubber(tmp_path)
-    d.say("Sakin ol, kanka. Kimseye vay be deme lüksün yok şu an.", None)
-    says = [m for m in proc.sent if m["op"] == "say"]
-    assert [m["text"] for m in says] == ["Sakin ol, kanka."]  # önce kısa parça
-    d.handle({"id": says[0]["id"], "wav": _wav(tmp_path / "a.wav"), "ms": 1800})
-    says = [m for m in proc.sent if m["op"] == "say"]
-    assert says[-1]["text"] == "Kimseye vay be deme lüksün yok şu an."  # ilk parça çalarken ikincisi
-    d.handle({"id": says[-1]["id"], "wav": _wav(tmp_path / "b.wav"), "ms": 2000})
-    n = len(proc.sent)
-    d.say("Sakin ol, kanka. Kimseye vay be deme lüksün yok şu an.", None)  # aynı replik: önbellekten
-    assert len(proc.sent) == n
-
-
-def test_too_short_line_skipped(tmp_path):
-    d, proc, _, _ = _dubber(tmp_path)
-    d.say("Ne?", None)
-    d.say("Ha!", None)  # 2 harf
-    assert [m for m in proc.sent if m["op"] == "say"] == []
-    d.say("Lan!", None)
-    assert [m["text"] for m in proc.sent if m["op"] == "say"] == ["Lan!"]
