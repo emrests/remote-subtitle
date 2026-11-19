@@ -1,6 +1,6 @@
 ; Inno Setup 6 kurulum betiği. Derleme: packaging/build.ps1
 #define AppName "Remote Subtitle (TR)"
-#define AppVersion "0.3.1"
+#define AppVersion "0.3.2"
 #define Port "8765"
 
 [Setup]
