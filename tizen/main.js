@@ -41,8 +41,20 @@
   }
 
   // --- PC'deki çeviri katmanı ---
+  // PC uygulaması henüz açık değilse sayfa bir kez reddedilip öyle kalıyordu: önce sunucu yanıt verene kadar yokla.
+  // Sayfa bir kez yüklenince kendi WebSocket'i kopsa da yeniden bağlanır (subtitle.js).
   function showOverlay(pc) {
-    overlay.src = "http://" + pc + ":" + PORT + "/display.html?tv=1&host=" + encodeURIComponent(pc + ":" + PORT);
+    var base = "http://" + pc + ":" + PORT, img = new Image(), warned = false;
+    clearTimeout(showOverlay.timer);
+    img.onload = function () {
+      overlay.src = base + "/display.html?tv=1&host=" + encodeURIComponent(pc + ":" + PORT);
+      if (warned) toast("PC'ye bağlandı");
+    };
+    img.onerror = function () {
+      if (!warned) { warned = true; toast("PC uygulaması bekleniyor (" + pc + "). Adres yanlışsa kırmızı tuş.", 8000); }
+      showOverlay.timer = setTimeout(function () { img.src = base + "/icon.png?t=" + Date.now(); }, 3000);
+    };
+    img.src = base + "/icon.png?t=" + Date.now();
   }
 
   function openSetup() {

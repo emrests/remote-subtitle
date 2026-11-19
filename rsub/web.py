@@ -469,6 +469,14 @@ class App:
         return {"account": await asyncio.to_thread(ps5.account), "host": host, "ps5": st,
                 "connected": ps5.stream.connected, "error": ps5.stream.error}
 
+    async def cmd_ps5_connect(self, msg):
+        host = self.rt.settings.get("ps5Host", "")
+        if not host:
+            raise ValueError("Önce PS5'i eşleştirin")
+        if not await asyncio.to_thread(ps5.stream.retry, host):
+            raise ValueError(ps5.stream.error or "PS5'ten görüntü gelmedi")
+        return True
+
     async def cmd_ps5_open_login(self, msg):
         os.startfile(ps5.login_url())  # Sony'nin kendi giriş sayfası, varsayılan tarayıcıda
         return None

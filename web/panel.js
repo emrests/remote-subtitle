@@ -635,6 +635,7 @@ async function loadPs5(host) {
     : d.error ? `Son deneme: ${d.error}`
     : using ? "Kaynak PS5. Çeviri başlayınca (ya da Kaynak ve bölge'de 'Görüntü al'a basınca) bağlanır."
     : "Eşleşti. Bu profilde kaynak olarak seçin.";
+  $("btn-ps5-connect").disabled = !paired;
   $("btn-ps5-use").disabled = !paired || using;
   $("btn-ps5-use").textContent = using ? "Kaynak: PS5" : "PS5'i kaynak yap";
 }
@@ -661,7 +662,14 @@ $("btn-ps5-use").onclick = () => act(async () => {
   toast("Kaynak PS5 oldu. Kaynak ve bölge'de 'Görüntü al' ile altyazı bölgesini seçin.");
   await loadPs5();
 });
-$("btn-ps5-check").onclick = () => act(async () => { toast("PS5 yoklanıyor…"); await loadPs5($("ps5-host").value.trim()); });
+$("btn-ps5-connect").onclick = () => act(async () => {
+  $("ps5-conn").textContent = "Bağlanıyor… (PS5 dinlenmedeyse uyandırılır, 1-2 dakika sürebilir)";
+  try {
+    await send("ps5_connect");
+    toast("PS5'e bağlandı: görüntü geliyor");
+  } finally { await loadPs5(); }
+});
+$("btn-ps5-check").onclick =() => act(async () => { toast("PS5 yoklanıyor…"); await loadPs5($("ps5-host").value.trim()); });
 document.querySelector('nav button[data-tab="conn"]').addEventListener("click", () => act(() => loadPs5()));
 
 // ---------- Samsung TV kurulumu ----------

@@ -429,6 +429,28 @@ async def test_ps5_state_remembers_already_paired_host(app, port, monkeypatch=No
         ps5.status = orig
 
 
+@with_app
+async def test_ps5_connect_button_retries_and_reports_error(app, port):
+    from rsub import ps5
+
+    class Fake:
+        error, calls = "PS5'e ulaşılamıyor (192.168.1.50)", []
+        def retry(self, host):
+            self.calls.append(host)
+            return host == "ok"
+
+    orig, ps5.stream = ps5.stream, Fake()
+    try:
+        async with connect(f"ws://127.0.0.1:{port}") as ws:
+            app.rt.settings["ps5Host"] = "192.168.1.50"
+            r = await _cmd(ws, cmd="ps5_connect")
+            assert not r["ok"] and "ulaşılamıyor" in r["error"] and ps5.stream.calls == ["192.168.1.50"]
+            app.rt.settings["ps5Host"] = "ok"
+            assert (await _cmd(ws, id=2, cmd="ps5_connect"))["ok"]
+    finally:
+        ps5.stream = orig
+
+
 def test_tv_package_has_pc_address_and_signatures(tmp_path):
     import datetime, io, zipfile
     from cryptography import x509

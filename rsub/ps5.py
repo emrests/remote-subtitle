@@ -146,6 +146,12 @@ class Stream:
             time.sleep(0.3)
         return None
 
+    def retry(self, host: str, timeout: float = 90) -> bool:
+        """Panelden 'Bağlan': bekleme süresini sıfırla, baştan bağlan, ilk kare gelene kadar bekle."""
+        self.stop()
+        self.error, self._last_try = None, 0.0
+        return self.wait_frame(host, timeout) is not None  # uyandırma (40 sn) + oturum (40 sn) sığsın
+
     def stop_if_idle(self) -> None:
         if self._device and time.monotonic() - self._last_use > IDLE_STOP:
             self.stop()
@@ -180,6 +186,13 @@ class Stream:
                 raise RuntimeError(f"PS5'e ulaşılamıyor ({self.host})")
             if user not in dev.get_users():
                 raise RuntimeError("Bu PS5 eşleştirilmemiş (Bağlantı sekmesi)")
+            if not dev.is_on:  # dinlenme modu: Remote Play oturumu açılmaz, önce uyandır
+                dev.wakeup(user)
+                end = time.monotonic() + 40
+                while not (dev.get_status() and dev.is_on):
+                    if time.monotonic() > end:
+                        raise RuntimeError("PS5 dinlenme modundan uyanmadı")
+                    time.sleep(2)
 
             async def go():
                 # fps "low" = 30: OCR saniyede ~10 kare okur; 60 kare yalnız işlemci harcar
