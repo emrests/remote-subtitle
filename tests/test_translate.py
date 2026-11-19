@@ -191,3 +191,14 @@ def test_unload_sends_keep_alive_zero(monkeypatch):
     def down(req, timeout): raise OSError("kapalı")
     monkeypatch.setattr(translate_mod.urllib.request, "urlopen", down)
     translate_mod.unload("m")  # Ollama kapalıyken hata vermez
+
+
+def test_profile_context_parts_and_only_mentioned_slang():
+    p = {"context": "Crime story in Leonida.", "tone": "Street slang, do not censor",
+         "slang": [{"en": "cops/pigs", "tr": "aynasızlar", "note": ""}, {"en": "fucking", "tr": "lan", "note": "as an intensifier"},
+                   {"en": "bread", "tr": "para", "note": ""}]}
+    pc = translate_mod.profile_context
+    assert pc(p, "Go to bed?") == "Crime story in Leonida. Street slang, do not censor"
+    assert pc(p, "The fucking pigs!") == ("Crime story in Leonida. Street slang, do not censor. "
+                                         "Slang meanings: cops/pigs = aynasızlar; fucking (as an intensifier) = lan")
+    assert pc({}, "x") == ""

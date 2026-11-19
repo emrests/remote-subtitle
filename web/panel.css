@@ -162,6 +162,10 @@ th { text-align: left; font-weight: 500; color: var(--muted); padding: 0 8px 8px
 td { padding: 4px 8px; }
 td input[type="text"] { width: 100%; }
 td.actions { width: 1%; white-space: nowrap; }
+.table-head { display: flex; gap: 12px; align-items: flex-start; margin-bottom: 12px; }
+.table-head > div { flex: 1; }
+.table-head p { margin: 4px 0 0; }
+.table-head input[type="search"] { width: 180px; }
 .empty { padding: 28px; text-align: center; color: var(--muted); border: 1px dashed var(--line); border-radius: var(--r-md); }
 
 .char-name { font-weight: 600; }

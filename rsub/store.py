@@ -19,6 +19,8 @@ def home() -> Path:
 def default_profile(name: str) -> dict:
     return {"name": name, "source": "monitor:1", "region": [0.0, 0.7, 1.0, 0.3],
             "style": dict(DEFAULT_STYLE), "glossary": {}, "speakers": {}, "speakerColor": False, "context": "",
+            "tone": "",  # konuşma tarzı talimatı ("street slang, do not censor")
+            "slang": [],  # [{"en": "homie/dawg", "tr": "kanka", "note": ""}]: anlam ipucu, satırda geçerse modele gider
             "showPc": True, "showTv": True,
             "extraRegions": []}  # [{"name", "region"}]: altyazı dışındaki bölgeler, sıra = öncelik
 
@@ -80,6 +82,9 @@ def load_profile(name: str) -> dict:
         p["region"] = default_profile(name)["region"]
     p["extraRegions"] = [{"name": r["name"], "region": r["region"]} for r in p["extraRegions"]
                          if isinstance(r, dict) and isinstance(r.get("name"), str) and _valid_region(r.get("region"))]
+    p["slang"] = [{"en": r["en"].strip(), "tr": r["tr"].strip(), "note": str(r.get("note") or "").strip()}
+                  for r in p["slang"] if isinstance(r, dict) and isinstance(r.get("en"), str)
+                  and isinstance(r.get("tr"), str) and r["en"].strip()]
     p["glossary"] = {k: v for k, v in p["glossary"].items() if isinstance(v, str)}
     p["speakers"] = {k: {"color": v.get("color") if isinstance(v.get("color"), str) else None, "voice": v.get("voice")}
                      for k, v in p["speakers"].items() if isinstance(v, dict)}

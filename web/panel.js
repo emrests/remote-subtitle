@@ -462,8 +462,11 @@ new ResizeObserver(fitPreview).observe($("tv-screen"));
 
 // ---------- terimler ----------
 $("game-context").oninput = (e) => { S.profile.context = e.target.value; saveProfileSoon(); };
+$("game-tone").oninput = (e) => { S.profile.tone = e.target.value; saveProfileSoon(); };
 function renderGlossary() {
   if (document.activeElement !== $("game-context")) $("game-context").value = S.profile.context || "";
+  if (document.activeElement !== $("game-tone")) $("game-tone").value = S.profile.tone || "";
+  renderSlang();
   const rows = Object.entries(S.profile.glossary);
   $("glossary-empty").hidden = rows.length > 0;
   $("glossary").hidden = rows.length === 0;
@@ -490,6 +493,47 @@ $("btn-term-add").onclick = () => {
   $("glossary-empty").hidden = true; $("glossary").hidden = false;
   const row = glossaryRow("", "");
   $("glossary").tBodies[0].append(row);
+  row.querySelector("input").focus();
+};
+
+// Argo sözlüğü: satır düzenlenince bütün tablo profile yazılır (filtre gizlediği satırlar da tabloda durur)
+function renderSlang() {
+  const rows = S.profile.slang || [];
+  $("slang-empty").hidden = rows.length > 0;
+  $("slang").hidden = rows.length === 0;
+  $("slang").tBodies[0].replaceChildren(...rows.map(slangRow));
+  filterSlang();
+}
+function syncSlang() {
+  S.profile.slang = [...$("slang").querySelectorAll("tbody tr")].map((r) => {
+    const [en, tr, note] = [...r.querySelectorAll("input")].map((i) => i.value.trim());
+    return { en, tr, note };
+  }).filter((r) => r.en);
+  saveProfileSoon();
+}
+function slangRow(r) {
+  const row = document.createElement("tr");
+  const mk = (v, label) => { const i = document.createElement("input"); i.type = "text"; i.value = v || ""; i.setAttribute("aria-label", label); i.onchange = syncSlang; return i; };
+  const del = document.createElement("button"); del.className = "btn ghost"; del.textContent = "Kaldır";
+  del.onclick = () => { row.remove(); syncSlang(); renderSlang(); };
+  const cells = [mk(r.en, "İngilizce kelime"), mk(r.tr, "Türkçe karşılık"), mk(r.note, "Not"), del].map((el) => { const td = document.createElement("td"); td.append(el); return td; });
+  cells[3].className = "actions";
+  row.append(...cells);
+  return row;
+}
+function filterSlang() {
+  const q = $("slang-filter").value.trim().toLocaleLowerCase("tr");
+  $("slang").querySelectorAll("tbody tr").forEach((r) => {
+    r.hidden = !!q && ![...r.querySelectorAll("input")].some((i) => i.value.toLocaleLowerCase("tr").includes(q));
+  });
+}
+$("slang-filter").oninput = filterSlang;
+$("btn-slang-add").onclick = () => {
+  $("slang-filter").value = "";
+  $("slang-empty").hidden = true; $("slang").hidden = false;
+  const row = slangRow({});
+  $("slang").tBodies[0].prepend(row);
+  filterSlang();
   row.querySelector("input").focus();
 };
 

@@ -133,6 +133,26 @@ def unprotect(text: str, mapping: dict[str, str]) -> str:
     return text
 
 
+def _mentions(term: str, text: str) -> bool:
+    """Terim metinde kelime olarak (yaygın İngilizce ekleriyle) geçiyor mu: fuck → fucking; jack → jacket değil."""
+    term = term.strip()
+    return bool(term) and re.search(rf"(?<![\w]){re.escape(term)}(?:s|es|ed|ing|in'|er|ers)?(?![\w])", text,
+                                    re.IGNORECASE) is not None
+
+
+def profile_context(profile: dict, text: str) -> str:
+    """Profilin çeviri bağlamı: oyun hakkında + konuşma tarzı + argo sözlüğünden yalnız satırda geçenler."""
+    slang = []
+    for r in profile.get("slang") or []:
+        if any(_mentions(t, text) for t in r["en"].split("/")):
+            en = r["en"] + (f" ({r['note']})" if r.get("note") else "")
+            slang.append(f"{en} = {r['tr']}".replace(";", ","))
+    parts = [(profile.get("context") or "").strip().rstrip("."), (profile.get("tone") or "").strip().rstrip(".")]
+    if slang:
+        parts.append("Slang meanings: " + "; ".join(slang))
+    return ". ".join(p for p in parts if p)
+
+
 def relevant_context(context: str, text: str) -> str:
     """Bağlamdaki sözlük cümlelerinden ("Slang meanings: homie/dawg = kanka; cops = aynasızlar") yalnız metinde geçen
     terimleri bırakır. Ölçüm: 40 terimlik sözlük her satıra gidince kısa satırlar sözlüğe kayıyordu
@@ -147,7 +167,7 @@ def relevant_context(context: str, text: str) -> str:
         for pair in body.rstrip(".").split(";"):
             terms = pair.split("=")[0]
             words = [re.sub(r"\(.*?\)", "", t).strip() for t in terms.split("/")]
-            if any(w and re.search(rf"(?<![\w]){re.escape(w)}(?:s|es|ed|ing|in'|er|ers)?(?![\w])", text, re.IGNORECASE) for w in words):
+            if any(_mentions(w, text) for w in words):
                 keep.append(pair.strip())
         if keep:
             out.append(f"{head}: {'; '.join(keep)}.")

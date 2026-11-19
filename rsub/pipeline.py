@@ -14,7 +14,7 @@ from .capture import grab, target_rect, to_pixels
 from .ocr import read_best as ocr  # normal okuma, zayıfsa parlak-yazı yöntemi
 from .speaker import split_speakers
 from .cleanup import GARBAGE_BELOW, clean
-from .translate import translate
+from .translate import profile_context, translate
 
 SLOW_MS = 1000
 ERROR_PAUSE = 1.0  # beklenmedik hatadan sonra bekleme (sn)
@@ -126,7 +126,7 @@ def _translator(rt: Runtime) -> Callable[[str], str]:
         try:
             rt.known_names.update(rt.profile["speakers"])
             out = translate(en, rt.settings["model"], rt.profile["glossary"], rt.cache, known=rt.known_names,
-                            context=rt.profile.get("context", ""))
+                            context=profile_context(rt.profile, en))
             rt.status["error"] = None
             return out
         except Exception as e:

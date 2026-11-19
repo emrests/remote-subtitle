@@ -99,3 +99,11 @@ def test_speaker_color_option_defaults_off_and_persists(tmp_path, monkeypatch):
 def test_display_targets_default_on():
     p = store.default_profile("A")
     assert p["showPc"] is True and p["showTv"] is True
+
+
+def test_profile_slang_and_tone_validated():
+    p = store.load_profile("S")
+    assert p["tone"] == "" and p["slang"] == []
+    p["slang"] = [{"en": " homie ", "tr": "kanka"}, {"en": "", "tr": "x"}, {"en": 1, "tr": "y"}, "z"]
+    store.save_profile(p)
+    assert store.load_profile("S")["slang"] == [{"en": "homie", "tr": "kanka", "note": ""}]

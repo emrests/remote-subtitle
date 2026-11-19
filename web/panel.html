@@ -33,7 +33,7 @@
     <button data-tab="feed">Çeviri akışı</button>
     <button data-tab="source" aria-current="page">Kaynak ve bölge</button>
     <button data-tab="style">Görünüm</button>
-    <button data-tab="glossary">Terimler</button>
+    <button data-tab="glossary">Oyun dili</button>
     <button data-tab="chars">Karakterler</button>
     <button data-tab="model">Çeviri modeli</button>
     <button data-tab="conn">Kurulum</button>
@@ -146,17 +146,37 @@
     <section id="tab-glossary" hidden>
       <header>
         <div>
-          <h2>Terimler</h2>
-          <p class="muted">Bu oyuna özel isim ve terimler her zaman burada yazdığınız gibi çevrilir. Çevrilmemesini istediğiniz bir ismi iki sütuna da aynı yazın.</p>
+          <h2>Oyun dili</h2>
+          <p class="muted">Bu oyunun dünyası, konuşma tarzı, argosu ve sabit terimleri. Çeviri modeline her satırla birlikte verilir; değişiklikler hemen geçerli olur.</p>
         </div>
-        <button class="btn primary" id="btn-term-add">Terim ekle</button>
       </header>
       <div class="panel stack">
         <div class="field"><label for="game-context">Oyun hakkında</label>
           <textarea id="game-context" rows="2" placeholder="1899 Wild West, outlaws who travel on horseback"></textarea></div>
-        <p class="muted">Çeviri modeline her satırla birlikte verilir; kelimeyi oyunun dünyasına göre seçer. Örneğin bu bilgi yokken "ride out" bisiklet sürmek diye çevriliyordu, Vahşi Batı yazınca at sürmek oldu. Kısa ve İngilizce yazın.</p>
+        <p class="muted">Kelimeyi oyunun dünyasına göre seçtirir. Örneğin bu bilgi yokken "ride out" bisiklet sürmek diye çevriliyordu, Vahşi Batı yazınca at sürmek oldu. Kısa ve İngilizce yazın.</p>
+        <div class="field"><label for="game-tone">Konuşma tarzı</label>
+          <textarea id="game-tone" rows="3" placeholder="Translate into informal Turkish street talk (argo), keep the swearing as strong as the original, do not censor"></textarea></div>
+        <p class="muted">Çevirinin üslubu: resmî mi, argo mu, küfürler yumuşatılsın mı. İngilizce yazın.</p>
       </div>
       <div class="panel">
+        <div class="table-head">
+          <div><b>Argo ve küfür sözlüğü</b>
+            <p class="muted">Modele anlam ipucu olarak verilir; yalnız o satırda geçen kelimeler gider. Aynı anlamdaki kelimeleri <b>/</b> ile ayırın (cops/pigs). Not, kelimenin hangi kullanımı olduğunu söyler (as an intensifier).</p></div>
+          <input type="search" id="slang-filter" placeholder="Ara…" aria-label="Sözlükte ara">
+          <button class="btn primary" id="btn-slang-add">Kelime ekle</button>
+        </div>
+        <table id="slang">
+          <thead><tr><th>İngilizce</th><th>Türkçe</th><th>Not</th><th></th></tr></thead>
+          <tbody></tbody>
+        </table>
+        <div class="empty" id="slang-empty">Sözlük boş. Örneğin <b>homie/dawg</b> → <b>kanka</b> ya da <b>cops/pigs</b> → <b>aynasızlar</b>.</div>
+      </div>
+      <div class="panel">
+        <div class="table-head">
+          <div><b>Sabit terimler</b>
+            <p class="muted">İsim, yer ve oyun terimleri her zaman burada yazdığınız gibi çevrilir; model değiştiremez. Çevrilmemesini istediğiniz bir ismi iki sütuna da aynı yazın. Argo için yukarıdaki sözlüğü kullanın: sabit terim cümle içinde isim gibi davranır.</p></div>
+          <button class="btn primary" id="btn-term-add">Terim ekle</button>
+        </div>
         <table id="glossary">
           <thead><tr><th>İngilizce</th><th>Türkçe</th><th></th></tr></thead>
           <tbody></tbody>
