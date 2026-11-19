@@ -60,8 +60,9 @@ def error_page(message: str) -> str:
 
 def unload_model() -> None:
     """Çıkışta çeviri modelini Ollama'dan boşalt: oyun ekran kartı belleğini hemen geri alsın."""
-    from . import store
+    from . import dub, store
     from .translate import unload
+    dub.close_all()  # dublaj işçisi ayrı süreç: kendiliğinden kapanmaz, ekran kartı belleğini tutar
     unload(store.load_settings()["model"])
 
 

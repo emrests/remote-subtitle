@@ -104,6 +104,23 @@ Bilgisayarın IP adresi değişirse *Kur* ile yeniden kurun (ya da TV'de Kırmı
 | 🔴 TV yanıt vermiyor (N sn) | TV uygulaması donmuş ya da kapanmış |
 | 🔴 TV uygulaması açık değil | Bağlantı yok |
 
+## Sesli dublaj (deneysel)
+
+Çeviriler karakterin kendi sesine benzeyen Türkçe sesle okunur (Chatterbox, yerel, ekran kartında).
+
+- **Kurulum** (bir kez, ~5 GB): ayrı bir Python ortamı kurulur, uygulama ona dokunmaz.
+  ```powershell
+  python -m venv "$env:LOCALAPPDATA\remote-subtitle\dub"
+  & "$env:LOCALAPPDATA\remote-subtitle\dub\Scripts\python.exe" -m pip install torch torchaudio --index-url https://download.pytorch.org/whl/cu128
+  & "$env:LOCALAPPDATA\remote-subtitle\dub\Scripts\python.exe" -m pip install -r requirements-dub.txt
+  ```
+- *Kaynak ve bölge › Sesli dublaj › Açık*. Ses bu bilgisayardan ve/veya TV'den çalabilir.
+- **Karakter sesleri oyundan bir kez öğrenilir:** sesi olmayan bir karakter konuşurken bilgisayarın ses çıkışı
+  kaydedilir; ~10 sn birikince müzik/efekt ayıklanıp (Demucs) ses klonlanır ve oyun profiline kaydedilir. Bundan sonra
+  o karakter için kayıt yapılmaz. Bunun için oyun sesi **bilgisayardan** çalmalı (YouTube ya da sesi açık chiaki);
+  evde ses TV'den geldiğinde yeni karakterler varsayılan sesle okunur. *Karakterler › Ses › Yeniden al* sesi siler.
+- **Orijinal İngilizce konuşmayı** oyunun ses ayarlarından (diyalog sesi) kısın; müzik ve efektler kalır.
+
 ## Sorun giderme
 
 | Belirti | Çözüm |

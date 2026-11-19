@@ -43,7 +43,7 @@
   window.addEventListener("resize", fitStage); fitStage();
 
   // "Buradayım" bildirimi: PC panelinde TV ile gerçekten iletişim var mı, sayfa ekranda mı görünür
-  var sock = null, nCovers = 0;
+  var sock = null, nCovers = 0, dubAudio = new Audio();  // sesli dublaj (PC'den gelen Türkçe ses)
   function ping() {
     if (sock && sock.readyState === 1) {
       sock.send(JSON.stringify({ type: "displayPing", visible: !document.hidden, tv: !!q.get("tv"), covers: nCovers }));
@@ -71,6 +71,7 @@
 
   connectSubtitles("ws://" + host + "/display", function (msg) {
     if (msg.type === "cover") showCover(msg);
+    if (msg.type === "dub") { dubAudio.pause(); dubAudio.src = msg.audio; dubAudio.play(); }
     if (!textMode) return;
     if (msg.type === "style") { style = msg.style; renderSubtitle(sub, lines, style); }
     if (msg.type === "lines") { lines = msg.lines; renderSubtitle(sub, lines, style); }
