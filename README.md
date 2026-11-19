@@ -59,9 +59,9 @@ başka bir pencerenin altında kalmamalı.
 ### 3. Altyazı bölgesi
 
 **Kaynak ve bölge** sekmesi: kaynağı seçin → *Görüntü al* → görüntü üzerinde altyazının çıktığı alanı fareyle
-çizin. Ayarlar oyun profiline kaydedilir (üstteki profil listesi: *Yeni / Kopyala / Sil*). *Terimler* ve
-*Karakterler* sekmelerinde oyuna özel isimleri ve konuşmacı renklerini, profilde oyunun dünyasını
-(örneğin "1899 Vahşi Batı") tanımlayabilirsiniz.
+çizin. Ayarlar oyun profiline kaydedilir (üstteki profil listesi: *Yeni / Kopyala / Sil*). *Oyun dili* sekmesinde oyunun
+dünyasını (örneğin "1899 Vahşi Batı"), konuşma tarzını, argo/küfür sözlüğünü ve sabit terimleri; *Karakterler*
+sekmesinde konuşmacı renklerini tanımlayabilirsiniz.
 
 *Çeviriyi göster*: **Bu bilgisayarda** (pencere kaynağında, orijinal altyazının üstünde) ve/veya **TV'de**.
 
