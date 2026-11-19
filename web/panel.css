@@ -250,8 +250,5 @@ textarea { width: 100%; resize: vertical; }
 .targets .dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; margin-right: 6px; background: var(--bad); }
 .targets .dot.on { background: var(--ok); }
 .targets .dot.warn { background: var(--warn); }
-.dub-targets { grid-template-columns: auto auto auto 1fr; margin-top: 8px; }
-.dub-targets > b { grid-row: span 2; }
-.dub-targets > .muted { grid-column: span 2; }
 .feed-row .who-col { font-weight: 600; overflow-wrap: anywhere; }
 .feed-row .who-col .none { color: var(--muted); font-weight: 400; }

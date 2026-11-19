@@ -6,7 +6,6 @@ import os
 from pathlib import Path
 
 DEFAULT_SETTINGS = {"profile": "Varsayılan", "model": "translategemma:12b", "chiakiPath": "", "running": False, "overlay": True, "ps5Host": ""}
-DEFAULT_DUB = {"on": False, "pc": True, "tv": False, "volume": 1.0}  # sesli dublaj: aç, nereden çalsın, ses düzeyi
 DEFAULT_STYLE = {"font": "Segoe UI", "size": 48, "color": "#ffffff", "bg": "#000000", "bgOpacity": 0.45,
                  "position": "bottom", "offset": 60, "nameColor": "#ffd166", "blur": 16, "blurMode": "live",
                  "cover": "early",
@@ -23,8 +22,7 @@ def default_profile(name: str) -> dict:
             "tone": "",  # konuşma tarzı talimatı ("street slang, do not censor")
             "slang": [],  # [{"en": "homie/dawg", "tr": "kanka", "note": ""}]: anlam ipucu, satırda geçerse modele gider
             "showPc": True, "showTv": True,
-            "extraRegions": [],  # [{"name", "region"}]: altyazı dışındaki bölgeler, sıra = öncelik
-            "dub": dict(DEFAULT_DUB)}
+            "extraRegions": []}  # [{"name", "region"}]: altyazı dışındaki bölgeler, sıra = öncelik
 
 
 def _path(name: str) -> Path:
@@ -80,7 +78,6 @@ def load_profile(name: str) -> dict:
     p = _merge(default_profile(name), data)
     p["name"] = name
     p["style"] = _merge(DEFAULT_STYLE, data.get("style"))
-    p["dub"] = _merge(DEFAULT_DUB, data.get("dub"))
     if not _valid_region(p["region"]):
         p["region"] = default_profile(name)["region"]
     p["extraRegions"] = [{"name": r["name"], "region": r["region"]} for r in p["extraRegions"]

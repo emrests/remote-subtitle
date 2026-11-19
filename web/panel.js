@@ -151,11 +151,8 @@ function renderStatus() {
       : chip("Pencere", st.window, st.window ? "Kaynak bulundu" : "Kaynak pencere bulunamadı ya da küçültülmüş."),
     chip(`Ekran ${st.clients || 0}`, (st.clients || 0) > 0, "Bağlı gösterim ekranı (TV ya da tarayıcıdaki gösterim sayfası) sayısı"),
   ];
-  const dubSt = st.dub || {};
-  if (S.profile && (S.profile.dub || {}).on && dubSt.available)
-    chips.push(chip("Ses", dubSt.ready && !dubSt.error, dubSt.error || (dubSt.ready ? "Dublaj sesi hazır" : "Ses modeli yükleniyor")));
   $("chips").replaceChildren(...chips);
-  renderTargets(); renderDub();
+  renderTargets();
 
   const running = !!st.running;
   const run = $("btn-run");
@@ -313,48 +310,6 @@ function tvLink(displays) {
   return ["on", `TV ile iletişim var · ekranda · ${d.covers} çeviri kutusu alındı` + extra,
     "TV'deki sayfa 2 sn'de bir yanıt veriyor ve ekranda görünüyor."];
 }
-// ---------- sesli dublaj ----------
-const dubCfg = () => (S.profile.dub = S.profile.dub || { on: false, pc: true, tv: false, volume: 1 });
-function renderDub() {
-  if (!S.profile) return;
-  const d = dubCfg(), st = (S.status && S.status.dub) || {};
-  $("dub-on").checked = !!d.on; $("dub-on").disabled = !st.available;
-  $("dub-pc").checked = d.pc !== false; $("dub-tv").checked = !!d.tv;
-  $("dub-vol").value = d.volume ?? 1; $("o-dub-vol").value = "%" + Math.round((d.volume ?? 1) * 100);
-  $("dub-info").textContent = !st.available ? "Dublaj ortamı kurulu değil."
-    : st.error ? "Hata: " + st.error
-    : d.on ? (st.ready ? `Hazır${st.lastMs ? ` · son replik ${(st.lastMs / 1000).toFixed(1)} sn` : ""}. Orijinal konuşmayı oyunun ses ayarlarından (diyalog sesi) kısın.` : "Ses modeli yükleniyor…")
-    : "Çeviriler karakterin kendi sesine benzeyen Türkçe sesle okunur. Sesler oyundan bir kez öğrenilir.";
-  updateVoices();
-}
-const setDub = (k, v) => { dubCfg()[k] = v; saveProfileSoon(); renderDub(); };
-$("dub-on").onchange = (e) => setDub("on", e.target.checked);
-$("dub-pc").onchange = (e) => setDub("pc", e.target.checked);
-$("dub-tv").onchange = (e) => setDub("tv", e.target.checked);
-$("dub-vol").oninput = (e) => setDub("volume", +e.target.value);
-
-// Karakterler tablosundaki Ses hücreleri: durum her saniye gelir, tabloyu yeniden kurmadan yalnız bu hücreler güncellenir
-function updateVoices() {
-  const st = (S.status && S.status.dub) || {};
-  document.querySelectorAll("[data-voice]").forEach((cell) => {
-    const name = cell.dataset.voice, sp = S.profile.speakers[name] || {};
-    const key = [st.available, !!sp.voice, (st.samples || {})[name]].join("|");
-    if (cell.dataset.key === key) return;
-    cell.dataset.key = key;
-    const tag = document.createElement("span"); tag.className = "tag";
-    const btn = (text, fn) => { const b = document.createElement("button"); b.className = "btn ghost"; b.textContent = text; b.onclick = () => act(fn); return b; };
-    const parts = [tag];
-    if (!st.available) tag.textContent = "Dublaj kurulu değil";
-    else if (sp.voice) {
-      tag.textContent = "Klonlandı"; tag.classList.add("ok");
-      parts.push(btn("▶ Dinle", () => send("dub_preview", { speaker: name })),
-        btn("Yeniden al", async () => { S.profile = await send("voice_reset", { speaker: name }); renderChars(); toast("Ses silindi; karakter konuşunca yeniden öğrenilecek"); }));
-    } else if ((st.samples || {})[name] != null) tag.textContent = `Örnek toplanıyor ${st.samples[name]}/10 sn`;
-    else { tag.textContent = "Varsayılan ses"; parts.push(btn("▶ Dinle", () => send("dub_preview", { speaker: name }))); }
-    cell.replaceChildren(...parts);
-  });
-}
-
 $("show-pc").onchange = (e) => { S.profile.showPc = e.target.checked; saveProfileSoon(); renderTargets(); };
 $("show-tv").onchange = (e) => { S.profile.showTv = e.target.checked; saveProfileSoon(); renderTargets(); };
 
@@ -598,7 +553,7 @@ function renderChars() {
     const colorCell = document.createElement("div"); colorCell.className = "inline-form"; colorCell.append(color, reset);
     color.oninput = () => { sp.color = color.value; n.style.color = color.value; reset.hidden = false; renderPreview(); saveProfileSoon(); };
     reset.onclick = () => { sp.color = null; renderChars(); renderPreview(); saveProfileSoon(); };
-    const voice = document.createElement("div"); voice.className = "inline-form"; voice.dataset.voice = name;
+    const voice = document.createElement("span"); voice.className = "tag"; voice.textContent = "Dublaj aşamasında";
     const del = document.createElement("button"); del.className = "btn ghost"; del.textContent = "Kaldır";
     del.onclick = () => { delete S.profile.speakers[name]; renderChars(); saveProfileSoon(); };
     const cells = [n, colorCell, voice, del].map((el) => { const td = document.createElement("td"); td.append(el); return td; });
@@ -606,7 +561,6 @@ function renderChars() {
     row.append(...cells);
     return row;
   }));
-  updateVoices();
 }
 
 // ---------- modeller ----------

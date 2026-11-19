@@ -21,7 +21,7 @@ from websockets.asyncio.server import serve
 from websockets.datastructures import Headers
 from websockets.http11 import Response
 
-from . import capture, dub, layout, ps5, store, tizen_cert, tizen_device
+from . import capture, layout, ps5, store, tizen_cert, tizen_device
 from .tizen_sign import sign_wgt
 from .models import gpu_vram_mb, installed, model_infos, ollama_up, pull, recommend, start_ollama
 from .ocr import make_ocr, ocr_language
@@ -100,8 +100,6 @@ class App:
         self.rt = Runtime(settings, store.load_profile(settings["profile"]), self._emit)
         self.rt.on_frame = self.sync_overlay
         self.rt.on_extras = self.sync_extras
-        self.rt.on_lines, self.rt.on_gone = self.dub_lines, self.dub_gone
-        self.dub = dub.Dubber(self._dub_audio, self._dub_event) if dub.available() else None
         self.overlay = None  # serve_app gerçek katmanı bağlar; testler sahtesini
         self.make_overlay: Callable | None = None  # ek bölgelerin katmanları (serve_app bağlar)
         self.extra_overlays: dict = {}  # ek bölge anahtarı -> katman
@@ -253,63 +251,6 @@ class App:
         for key in set(self.extra_overlays) - {extra_key(r) for r in prof.get("extraRegions") or []}:
             self.extra_overlays.pop(key).close()  # silinen bölgenin penceresi
 
-    # --- sesli dublaj ---
-    def _dub_cfg(self) -> dict | None:
-        cfg = self.rt.profile.get("dub") or {}
-        return cfg if self.dub and cfg.get("on") and self.rt.settings.get("running") else None
-
-    def _voice(self, speaker) -> str | None:
-        v = (self.rt.profile["speakers"].get(speaker) or {}).get("voice") if speaker else None
-        return v if v and Path(v).exists() else None
-
-    def dub_lines(self, lines: list) -> None:
-        """Yeni çeviri: konuşanın klonlanmış sesiyle (yoksa varsayılan sesle) okunur."""
-        cfg = self._dub_cfg()
-        if self.dub is not None:  # sesi olmayan karakter varken oyun sesi dinlenir (örnek için); hepsi sesliyse kapalı
-            self.dub.listen(bool(cfg) and any(not self._voice(n) for n in self.rt.profile["speakers"]))
-        text = " ".join(l["tr"] for l in lines if l.get("tr"))
-        if cfg and text:
-            self.dub.say(text, self._voice(lines[0].get("speaker")), cfg.get("volume", 1.0),
-                         pc=cfg.get("pc", True), tv=cfg.get("tv", False))
-
-    def dub_gone(self, lines: list, start: float, end: float) -> None:
-        """Satır bitti: tek konuşmacılı ve sesi henüz yoksa, o aralığın oyun sesi o karakterin örneğine eklenir."""
-        speakers = {l.get("speaker") for l in lines}
-        if not self._dub_cfg() or len(speakers) != 1 or None in speakers:
-            return
-        name = speakers.pop()
-        if name in self.rt.profile["speakers"] and not self._voice(name):
-            self.dub.clip(name, start, end, str(dub.voice_path(self.rt.profile["name"], name)))
-
-    def _dub_audio(self, wav: str, job: dict) -> None:
-        if job.get("tv") and self.displays:
-            data = Path(wav).read_bytes()
-            self.send_displays({"type": "dub", "audio": "data:audio/wav;base64," + base64.b64encode(data).decode()})
-
-    def _dub_event(self, msg: dict) -> None:
-        if "cloned" in msg:  # bir kez: ses dosyası profile yazılır, bir daha klonlanmaz
-            sp = self.rt.profile["speakers"].get(msg["cloned"])
-            if sp is not None:
-                sp["voice"] = msg["out"]
-                store.save_profile(self.rt.profile)
-                self.broadcast({"type": "profile", "profile": self.rt.profile})
-        self.broadcast({"type": "status", "status": self.status()})
-
-    async def cmd_dub_preview(self, msg):
-        if self.dub is None:
-            raise RuntimeError("Dublaj kurulu değil")
-        self.dub.say(dub.PREVIEW, self._voice(msg.get("speaker")), (self.rt.profile.get("dub") or {}).get("volume", 1.0))
-        return None
-
-    async def cmd_voice_reset(self, msg):
-        sp = self.rt.profile["speakers"].get(msg["speaker"])
-        if sp and sp.get("voice"):
-            for f in (Path(sp["voice"]), Path(sp["voice"]).with_suffix(".wav")):
-                f.unlink(missing_ok=True)
-            sp["voice"] = None
-            store.save_profile(self.rt.profile)
-        return self.rt.profile
-
     def _remember(self, entry: dict) -> str:
         """Çeviri akışına ekler. 2 sn içinde gelen benzer (daha düzgün) okuma eskisinin yerine geçer;
         3 sn içinde aynı satır tekrar gelirse eklenmez. "add" | "replace" | "skip" döner."""
@@ -332,8 +273,7 @@ class App:
         model = self.rt.settings["model"]
         return {**self.rt.status, "ollama": self.ollama, "model": model, "modelReady": model in self.models,
                 "ocrLang": self.ocr_lang, "clients": len(self.displays), "displays": self.display_states(),
-                "pull": self.pull_state,
-                "dub": {**self.dub.status, "available": True} if self.dub else {"available": False}}
+                "pull": self.pull_state}
 
     def display_states(self) -> list[dict]:
         """Her gösterim ekranının iletişim durumu: age = son bildirimden beri saniye (None: hiç bildirmedi)."""

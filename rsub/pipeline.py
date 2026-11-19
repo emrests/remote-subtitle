@@ -110,9 +110,6 @@ class Runtime:
     seen_t: float = 0.0  # yeni satırın ekranda ilk görüldüğü an
     hold: float = 0.0  # gösterilen çevirinin gecikmesi: altyazı gidince bu kadar daha kalır
     hide_at: float | None = None  # altyazı gitti, çeviri bu anda kalkacak
-    line_start: float | None = None  # gösterilen satırın ekranda ilk görüldüğü an (time.time; dublaj örneği için)
-    on_lines: Callable | None = None  # (satırlar) — yeni çeviri yayınlandı (dublaj)
-    on_gone: Callable | None = None  # (satırlar, başlangıç, bitiş) — orijinal altyazı ekrandan kalktı (ses örneği)
     translating: bool = False  # altyazı çevriliyor: ek bölgeler beklesin (altyazı öncelikli)
     extras: dict = field(default_factory=dict)  # ek bölge anahtarı -> Extra
     extra_engine: Any = None  # ek bölgelerin ayrı OCR motoru (altyazı döngüsüyle aynı anda okur)
@@ -188,15 +185,8 @@ def _track_cover(rt: Runtime, state: dict, text) -> None:
         rt.pending_box = (_union(prev, box), getattr(text, "lines", 0))
 
 
-def _gone(rt: Runtime, end: float) -> None:
-    """Gösterilen satırın orijinali ekrandan kalktı: görüldüğü aralık bildirilir (bir kez)."""
-    if rt.on_gone and rt.last_lines and rt.line_start:
-        rt.on_gone(rt.last_lines, rt.line_start, end)
-    rt.line_start = None
-
-
 def _clear(rt: Runtime, state: dict) -> None:
-    rt.hide_at = rt.line_start = None
+    rt.hide_at = None
     rt.text_box = None
     rt.pending_box = None
     if rt.last_lines:  # eski altyazı TV'de asılı kalmasın
@@ -250,7 +240,6 @@ async def _frame(rt: Runtime, sct, state: dict, tr, t0: float) -> None:
     if line is None:
         return
     if not line:  # altyazı gitti: okunabilsin diye çeviri, gelirken geciktiği kadar daha kalsın
-        _gone(rt, time.time())
         if rt.last_lines and rt.hide_at is None:
             rt.hide_at = time.monotonic() + min(HOLD_MAX, max(HOLD_MIN, rt.hold))
         return
@@ -260,9 +249,6 @@ async def _frame(rt: Runtime, sct, state: dict, tr, t0: float) -> None:
     finally:
         rt.translating = False
     t3 = time.perf_counter()
-    start = time.time() - (time.monotonic() - rt.seen_t) if rt.seen_t else time.time()
-    _gone(rt, start)  # önceki satır yenisi belirince bitti
-    rt.line_start = start
     rt.last_lines = lines
     rt.hide_at = None
     rt.hold = time.monotonic() - rt.seen_t if rt.seen_t else 0.0
@@ -270,8 +256,6 @@ async def _frame(rt: Runtime, sct, state: dict, tr, t0: float) -> None:
     rt.pending_box = None
     rt.diff_frames = 0
     rt.emit({"type": "lines", "lines": lines})
-    if rt.on_lines:
-        rt.on_lines(lines)
     if rt.on_frame:
         rt.on_frame(rect, region_img)
     # Yeni konuşmacılar döngü iş parçacığında eklenir (panel komutlarıyla yarışmasın);

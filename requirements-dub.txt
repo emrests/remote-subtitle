@@ -1,6 +1,0 @@
-# Sesli dublaj ortamı (ayrı venv: %LOCALAPPDATA%\remote-subtitle\dub). Önce CUDA'lı PyTorch:
-#   python -m pip install torch torchaudio --index-url https://download.pytorch.org/whl/cu128
-# Chatterbox ve Demucs arşivlenmiş (bakımsız) projeler; sürümler sabitlendi.
-chatterbox-tts==0.1.7
-demucs==4.0.1
-soundcard
