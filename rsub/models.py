@@ -68,6 +68,16 @@ def start_ollama() -> bool:
     return False
 
 
+OLLAMA_PROCESSES = ("ollama app.exe", "ollama.exe")  # önce tepsi uygulaması: yoksa sunucuyu yeniden başlatır
+
+
+def stop_ollama() -> None:
+    """Ollama'yı tamamen kapatır (tepsi uygulaması, sunucu ve model süreçleri)."""
+    for name in OLLAMA_PROCESSES:
+        subprocess.run(["taskkill", "/F", "/T", "/IM", name], capture_output=True,
+                       creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+
+
 def pull(model: str, on_pct: Callable[[int], None]) -> None:
     """Ollama indirmeyi kaldığı yerden sürdürür; hata olursa exception fırlatır."""
     body = json.dumps({"model": model, "stream": True}).encode()

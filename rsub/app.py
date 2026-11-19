@@ -58,6 +58,33 @@ def error_page(message: str) -> str:
             'Bilgisayarı yeniden başlatıp uygulamayı tekrar açın; sorun sürerse bu mesajı paylaşın.</p></body>')
 
 
+CLOSE_TITLE = "Remote Subtitle (TR) kapatılıyor"
+CLOSE_TEXT = ("Ollama da kapatılsın mı?\n\n"
+              "Evet: Ollama tamamen kapanır, arka planda çalışmaz.\n"
+              "Hayır: Yalnızca bu uygulama kapanır; Ollama'yı kullanan başka bir program varsa çalışmaya devam eder.\n"
+              "İptal: Uygulama açık kalır.\n\n"
+              "Her iki durumda da çeviri modeli ekran kartı belleğinden boşaltılır.")
+IDYES, IDNO = 6, 7
+MB_YESNOCANCEL, MB_ICONQUESTION, MB_TOPMOST, MB_SETFOREGROUND = 0x3, 0x20, 0x40000, 0x10000
+
+
+def ask_close() -> str | None:
+    """Kapatırken sorar: "ollama" (Ollama da kapansın), "app" (yalnız uygulama) ya da None (iptal).
+    Sahip pencere verilmez: pywebview kapanış olayını ayrı iş parçacığında çalıştırır, panel penceresine bağlı kutu
+    iki iş parçacığını kilitleyebilirdi."""
+    r = ctypes.windll.user32.MessageBoxW(None, CLOSE_TEXT, CLOSE_TITLE,
+                                         MB_YESNOCANCEL | MB_ICONQUESTION | MB_TOPMOST | MB_SETFOREGROUND)
+    return {IDYES: "ollama", IDNO: "app"}.get(r)
+
+
+def shutdown(choice: str | None) -> None:
+    """Kaynakları bırakır: model her durumda boşaltılır, istenirse Ollama da kapatılır."""
+    unload_model()
+    if choice == "ollama":
+        from .models import stop_ollama
+        stop_ollama()
+
+
 def unload_model() -> None:
     """Kapanışta çeviri modelini Ollama'dan boşalt: oyun ekran kartı belleğini hemen geri alsın."""
     from . import store
@@ -110,9 +137,17 @@ def main(argv: list[str] | None = None) -> None:
                                    background_color="#12161f", **page)
     holder["window"] = window
 
+    def on_closing():
+        choice = ask_close()
+        if choice is None:
+            return False  # İptal: açık kalsın
+        holder["close"] = choice
+        return True
+
+    window.events.closing += on_closing
     window.events.shown += lambda: set_window_icon(APP_TITLE, WEB_DIR / "icon.ico")
     webview.start()  # pencere kapanınca döner
-    unload_model()  # çeviri modeli ekran kartı belleğinden hemen boşalsın
+    shutdown(holder.get("close", "app"))  # model boşalır; istendiyse Ollama da kapanır
     os._exit(0)  # katman pencereleri ve sunucu iş parçacıklarıyla birlikte tamamen kapan
 
 
