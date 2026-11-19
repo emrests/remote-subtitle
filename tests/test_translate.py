@@ -103,10 +103,13 @@ def test_name_after_title_becomes_known(monkeypatch):
 
 
 def test_model_refusal_is_not_a_translation(monkeypatch):
-    import pytest
-    monkeypatch.setattr(translate_mod, "_generate", lambda m, p: "Üzgünüm, ancak bu metnin anlamını çözemiyorum. Lütfen daha fazla bağlam sağlayabilir misiniz?")
-    with pytest.raises(ValueError):
-        translate("e!jîî", "m", {}, {})
+    for answer in ["Üzgünüm, ancak bu metnin anlamını çözemiyorum. Lütfen daha fazla bağlam sağlayabilir misiniz?",
+                   '"for" kelimesinin Türkçe\'ye çevirisi bağlama göre değişir. Lütfen çevrilecek metni sağlayın.',
+                   "Elbette, çevirebilirim. Lütfen metni gönderin."]:
+        monkeypatch.setattr(translate_mod, "_generate", lambda m, p, a=answer: a)
+        assert translate("e!jîî", "m", {}, {}) == ""  # açıklama gösterilmez
+    monkeypatch.setattr(translate_mod, "_generate", lambda m, p: "Lütfen, kapıyı kapat.")
+    assert translate("Please, close the door.", "m", {}, {}) == "Lütfen, kapıyı kapat."  # sıradan "lütfen" geçer
 
 
 def test_word_after_leading_number_is_sentence_start():

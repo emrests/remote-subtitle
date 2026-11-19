@@ -249,6 +249,9 @@ async def _frame(rt: Runtime, sct, state: dict, tr, t0: float) -> None:
     finally:
         rt.translating = False
     t3 = time.perf_counter()
+    if not any(l["tr"] for l in lines):  # model çeviremedi (açıklama yazdı): satır hiç gösterilmez
+        rt.pending_box = None
+        return
     rt.last_lines = lines
     rt.hide_at = None
     rt.hold = time.monotonic() - rt.seen_t if rt.seen_t else 0.0

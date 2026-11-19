@@ -445,3 +445,11 @@ def test_profile_context_reaches_translation(monkeypatch):
     except TimeoutError:
         pass
     assert got and got[0] == "Wild West"
+
+
+def test_untranslatable_line_not_shown(monkeypatch):
+    _seq_frame(monkeypatch, [("for", B)] * 6, translated="")  # model açıklama yazdı: translate "" döndü
+    sent = []
+    rt = Runtime(settings={"model": "m"}, profile=copy.deepcopy(P), emit=sent.append)
+    _run_briefly(rt, 0.3)
+    assert [m for m in sent if m["lines"]] == [] and rt.last_lines == [] and rt.pending_box is None

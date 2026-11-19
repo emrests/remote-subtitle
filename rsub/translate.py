@@ -35,7 +35,13 @@ _TITLE = re.compile(r"(?<![\w'’])(" + "|".join(sorted(TITLES, key=len, reverse
                     + r")\.?\s+([A-Z][\w'’-]*(?:\s+[A-Z][\w'’-]*)*)")
 _CAPS = re.compile(r"(?<![\w'’])([A-Z][\w'’-]*(?:\s+[A-Z][\w'’-]*)*)")
 _POSSESSIVE = re.compile(r"['’]s$")
-_REFUSAL = re.compile(r"^(Üzgünüm|Maalesef|Özür dilerim)\b.*(metn|bağlam|anlam|çevir)", re.IGNORECASE | re.DOTALL)
+# Model çeviri yerine açıklama/ret yazıyor (OCR çöpü ya da tek kelimede): "Üzgünüm, anlayamadım...",
+# '"for" kelimesinin Türkçe'ye çevirisi bağlama göre değişir. Lütfen çevrilecek metni sağlayın',
+# "Elbette, çevirebilirim. Lütfen metni gönderin."
+_REFUSAL = re.compile(r"^(Üzgünüm|Maalesef|Özür dilerim)\b.*(metn|bağlam|anlam|çevir)"
+                      r"|lütfen.{0,40}(metn|cümle|bağlam)|çevrilecek (metn|cümle)|çevirebilirim"
+                      r"|bağlama göre değiş|kelimesinin.{0,40}(çeviri|anlam|karşılı)",
+                      re.IGNORECASE | re.DOTALL)
 
 
 def _vowel_class(word: str) -> str:
@@ -217,8 +223,9 @@ def translate(text: str, model: str, glossary: dict, cache: dict, known: set[str
     key = (model, context, masked, tuple(sorted(mapping.items())))
     if key not in cache:
         out = _generate(model, build_prompt(masked, glossary, context)).strip()
-        if _REFUSAL.search(out):  # model çeviri yerine "anlayamadım" dedi: çeviri sayma
-            raise ValueError("model metni çeviremedi")
+        if _REFUSAL.search(out):  # çeviri değil açıklama: hiç gösterilmez ("" önbelleğe de yazılır)
+            cache[key] = ""
+            return ""
         # model bazen seçenek sunar: "İyi misin? / Bir şey var mı?" ya da '"Sus lan!" veya "Kapa çeneni!"'
         if " / " in out and "/" not in text:
             out = out.split(" / ")[0].strip()
