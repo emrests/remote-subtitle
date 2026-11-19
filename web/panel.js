@@ -553,11 +553,10 @@ function renderChars() {
     const colorCell = document.createElement("div"); colorCell.className = "inline-form"; colorCell.append(color, reset);
     color.oninput = () => { sp.color = color.value; n.style.color = color.value; reset.hidden = false; renderPreview(); saveProfileSoon(); };
     reset.onclick = () => { sp.color = null; renderChars(); renderPreview(); saveProfileSoon(); };
-    const voice = document.createElement("span"); voice.className = "tag"; voice.textContent = "Dublaj aşamasında";
     const del = document.createElement("button"); del.className = "btn ghost"; del.textContent = "Kaldır";
     del.onclick = () => { delete S.profile.speakers[name]; renderChars(); saveProfileSoon(); };
-    const cells = [n, colorCell, voice, del].map((el) => { const td = document.createElement("td"); td.append(el); return td; });
-    cells[3].className = "actions";
+    const cells = [n, colorCell, del].map((el) => { const td = document.createElement("td"); td.append(el); return td; });
+    cells[2].className = "actions";
     row.append(...cells);
     return row;
   }));

@@ -8,7 +8,6 @@ winrt-Windows.Graphics.Imaging
 winrt-Windows.Media.Ocr
 winrt-Windows.Storage.Streams
 pywebview
-pystray
 Pillow
 pytest
 pyspellchecker

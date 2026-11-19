@@ -124,7 +124,7 @@ Ayarlar, profiller ve TV sertifikası: `%APPDATA%\remote-subtitle\`.
 ```
 pip install -r requirements.txt
 pip install --no-deps pyremoteplay==0.7.6   # netifaces bağımlılığı Python 3.14'te derlenmiyor; yerine netifaces-plus
-python -m rsub              # panel penceresi + sistem tepsisi
+python -m rsub              # panel penceresi (kapatınca tamamen kapanır)
 python -m rsub --headless   # sadece sunucu (panel: http://127.0.0.1:8765/)
 python -m pytest -q
 ```

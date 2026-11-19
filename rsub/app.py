@@ -1,4 +1,4 @@
-"""Giriş noktası: sunucu thread'i + pywebview paneli + sistem tepsisi, tek kopya."""
+"""Giriş noktası: sunucu thread'i + pywebview paneli, tek kopya. Pencere kapanınca uygulama tamamen kapanır."""
 import argparse
 import asyncio
 import ctypes
@@ -59,7 +59,7 @@ def error_page(message: str) -> str:
 
 
 def unload_model() -> None:
-    """Çıkışta çeviri modelini Ollama'dan boşalt: oyun ekran kartı belleğini hemen geri alsın."""
+    """Kapanışta çeviri modelini Ollama'dan boşalt: oyun ekran kartı belleğini hemen geri alsın."""
     from . import store
     from .translate import unload
     unload(store.load_settings()["model"])
@@ -67,7 +67,7 @@ def unload_model() -> None:
 
 def main(argv: list[str] | None = None) -> None:
     p = argparse.ArgumentParser(prog="remote-subtitle")
-    p.add_argument("--headless", action="store_true", help="pencere ve tepsi olmadan sadece sunucu")
+    p.add_argument("--headless", action="store_true", help="pencere olmadan sadece sunucu")
     p.add_argument("--port", type=int, default=PORT)
     a = p.parse_args(argv)
     capture.set_dpi_aware()
@@ -83,9 +83,7 @@ def main(argv: list[str] | None = None) -> None:
         ask_show(a.port)
         return
 
-    import pystray
     import webview
-    from PIL import Image
 
     holder: dict = {}
     ready = threading.Event()
@@ -112,25 +110,10 @@ def main(argv: list[str] | None = None) -> None:
                                    background_color="#12161f", **page)
     holder["window"] = window
 
-    def on_closing():
-        window.hide()  # kapatınca tepsiye in, okuma/çeviri sürsün
-        return False
-
-    window.events.closing += on_closing
     window.events.shown += lambda: set_window_icon(APP_TITLE, WEB_DIR / "icon.ico")
-
-    def quit_app(icon, _item) -> None:
-        icon.stop()
-        unload_model()
-        os._exit(0)
-
-    tray = pystray.Icon("remote-subtitle", Image.open(WEB_DIR / "icon.png"), APP_TITLE,
-                        menu=pystray.Menu(pystray.MenuItem("Paneli aç", lambda i, _: show(), default=True),
-                                          pystray.MenuItem("Çıkış", quit_app)))
-    tray.run_detached()
-    webview.start()
-    unload_model()
-    os._exit(0)  # pencere bir şekilde yok edilirse süreç de bitsin
+    webview.start()  # pencere kapanınca döner
+    unload_model()  # çeviri modeli ekran kartı belleğinden hemen boşalsın
+    os._exit(0)  # katman pencereleri ve sunucu iş parçacıklarıyla birlikte tamamen kapan
 
 
 if __name__ == "__main__":
