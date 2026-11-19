@@ -205,3 +205,13 @@ def test_profile_context_parts_and_only_mentioned_slang():
     assert pc(p, "The fucking pigs!") == ("Crime story in Leonida. Street slang, do not censor. "
                                          "Slang meanings: cops/pigs = aynasızlar; fucking (as an intensifier) = lan")
     assert pc({}, "x") == ""
+
+
+def test_unprotect_placeholder_merged_with_suffix():
+    assert translate_mod.unprotect("Ben Tavrim.", {"Tavrin": "Stefanie"}) == "Ben Stefanie."
+    assert translate_mod.unprotect("Tavrin'i gördüm.", {"Tavrin": "Stefanie"}) == "Stefanie'i gördüm."  # tam hali öncelikli
+
+
+def test_placeholder_stems_are_not_turkish_words():
+    stems = {ph[:-1].lower() for pool in translate_mod.PLACEHOLDERS.values() for ph in pool}
+    assert not stems & {"kesti", "selvi"}

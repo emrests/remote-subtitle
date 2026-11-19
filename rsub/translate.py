@@ -23,7 +23,7 @@ PROMPT = (
 # en azından ince ünlülü ek). Kalın düz: a/ı, ince: e/i, kalın yuvarlak: o/u.
 PLACEHOLDERS = {
     "back": ["Zorvak", "Kelmar", "Tarvan", "Vasdar", "Morkan", "Galdar"],
-    "front": ["Tavrin", "Melzik", "Kestin", "Dorvil", "Selvik", "Brenil"],
+    "front": ["Tavrin", "Melzik", "Vendil", "Dorvil", "Zelvin", "Brenil"],  # kökü Türkçe kelime olmasın (Kesti-, Selvi-)
     "round": ["Rivon", "Dalgor", "Mekrun", "Tasbur", "Velkon", "Zandor"],
     "frontround": ["Zemdül", "Melgöz", "Velkür", "Dersün", "Kortün", "Selmür"],  # ölçüm: en az "ürün" sanılan
 }
@@ -134,8 +134,11 @@ def protect(text: str, glossary: dict[str, str], known: set[str]) -> tuple[str, 
 def unprotect(text: str, mapping: dict[str, str]) -> str:
     """Yer tutucuyu geri koyar. Model eki kesme işaretsiz bitiştirmiş olabilir ("Tavrini" → "Get'i")."""
     for ph, target in mapping.items():
-        text = re.sub(rf"(?<![\w]){re.escape(ph)}([^\W\d_]*)",
-                      lambda m: target + ("'" + m.group(1) if m.group(1) else ""), text)
+        new = re.sub(rf"(?<![\w]){re.escape(ph)}([^\W\d_]*)",
+                     lambda m: target + ("'" + m.group(1) if m.group(1) else ""), text)
+        if new == text:  # model son harfi ekle kaynaştırmış: "I'm Tavrin" → "Ben Tavrim" (ek tahmin edilemez, düşer)
+            new = re.sub(rf"(?<![\w]){re.escape(ph[:-1])}[^\W\d_]+", target, text)
+        text = new
     return text
 
 
