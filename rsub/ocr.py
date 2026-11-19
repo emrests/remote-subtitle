@@ -32,9 +32,40 @@ def make_ocr():
 
 
 class OcrText(str):
-    """Okunan metin; .box = görüntüdeki kapsayıcı dikdörtgen (x, y, w, h) ya da None, .lines = satır sayısı."""
+    """Okunan metin; .box = görüntüdeki kapsayıcı dikdörtgen (x, y, w, h) ya da None, .lines = satır sayısı,
+    .name_colors = {konuşmacı: "#rrggbb"} (oyun ismi kendi renginde yazıyorsa, ör. GTA)."""
     box: tuple | None = None
     lines: int = 0
+    name_colors: dict = {}
+
+
+def text_color(rgb, rects) -> str | None:
+    """Kelime kutularındaki yazının rengi: en parlak %10 pikselin ortancası (yazı zeminden parlak)."""
+    import numpy as np
+    px = [rgb[max(0, int(r.y)):int(r.y + r.height), max(0, int(r.x)):int(r.x + r.width)].reshape(-1, 3) for r in rects]
+    px = np.concatenate(px) if px else np.zeros((0, 3))
+    if len(px) < 10:
+        return None
+    lum = px @ np.array([0.299, 0.587, 0.114])
+    top = px[lum >= np.percentile(lum, 90)]
+    return "#%02x%02x%02x" % tuple(int(v) for v in np.median(top, axis=0))
+
+
+def name_colors(shot, lines) -> dict:
+    """Satır başındaki "İsim:" kelimelerinin rengi (en fazla 3 kelimelik isim)."""
+    import numpy as np
+    out, rgb = {}, None
+    for line in lines:
+        words = list(line.words)
+        for k, wd in enumerate(words[:3]):
+            if wd.text.endswith(":"):
+                if rgb is None:
+                    rgb = np.frombuffer(shot.bgra, np.uint8).reshape(shot.height, shot.width, 4)[..., 2::-1]
+                name = " ".join(w.text for w in words[:k + 1])[:-1]
+                if color := text_color(rgb, [w.bounding_rect for w in words[:k + 1]]):
+                    out[name] = color
+                break
+    return out
 
 
 NAME_CONTRAST = 0.25  # isim ile replik parlaklığı arasındaki en az oran farkı (ölçüm: RDR2 isim 87, replik 167)
@@ -84,6 +115,8 @@ async def ocr(engine, shot, by_color: bool = False) -> OcrText:
         texts = [line.text for line in result.lines]
     out = OcrText(" ".join(texts).strip())
     out.lines = sum(1 for line in result.lines if line.text.strip())
+    if hasattr(shot, "bgra"):
+        out.name_colors = name_colors(shot, result.lines)
     rects = [wd.bounding_rect for line in result.lines for wd in line.words]
     if rects:
         x0, y0 = min(r.x for r in rects), min(r.y for r in rects)

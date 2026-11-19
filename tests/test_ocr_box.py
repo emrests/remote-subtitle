@@ -28,3 +28,20 @@ def test_ocr_reports_line_count():
     d.text((300, 160), "Let's try this way.", font=f, fill="white")
     text = asyncio.run(ocr(make_ocr(), Shot(img)))
     assert text.lines == 2 and text.box[3] >= 90
+
+
+def test_name_color_read_from_pixels():
+    import time
+    from types import SimpleNamespace as NS
+    from PIL import Image, ImageDraw
+    from rsub.ocr import _Frame, name_colors
+    img = Image.new("RGB", (400, 40), (10, 10, 10))
+    d = ImageDraw.Draw(img)
+    d.rectangle([5, 10, 80, 30], fill=(214, 140, 230))  # "Stranger:" pembe-mor
+    d.rectangle([90, 10, 200, 30], fill=(240, 240, 240))  # replik beyaz
+    r = lambda x, w: NS(x=x, y=5, width=w, height=30)
+    line = NS(words=[NS(text="Stranger:", bounding_rect=r(0, 85)), NS(text="Okay...", bounding_rect=r(88, 115))])
+    t = time.perf_counter()
+    got = name_colors(_Frame(img), [line])
+    assert got == {"Stranger": "#d68ce6"} and time.perf_counter() - t < 0.01
+    assert name_colors(_Frame(img), [NS(words=[NS(text="Okay...", bounding_rect=r(88, 115))])]) == {}

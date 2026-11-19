@@ -97,41 +97,18 @@ TWO_LINE_TR = [{"speaker": None, "color": None, "en": "x",
                 "tr": "Pekala, geldiğimiz yolu geri takip edemeyiz. Hadi bu yolu deneyelim o zaman."}]
 
 
-def _anchor(lines, line_h=40, w=700, x=300, y=60):
-    return (x, y, w, line_h * lines), lines
 
 
-def test_pill_matches_original_line_count():
-    from rsub.layout import pill
-    for n in (1, 2, 3):
-        (x, y, w, h), (px, rows) = pill(TWO_LINE_TR, STYLE, 1600, 400, 1.0, *_anchor(n))
-        assert len(rows) == n, n
 
 
-def test_pill_font_matches_original_size():
-    # ölçüm: Windows OCR kutu yüksekliği = yazı tipi boyutunun ~0,97'si (Georgia/Segoe, 30-56 px)
-    from rsub.layout import pill
-    _, (px, _) = pill(LINE, STYLE, 1600, 400, 1.0, *_anchor(1, line_h=39))
-    assert 38 <= px <= 42  # orijinal 40 px; ayardaki 48 değil orijinal boyut
 
 
-def test_pill_font_matches_original_size_multiline():
-    from rsub.layout import pill
-    # 40 px yazı, 2 satır: kutu yüksekliği ≈ 1,25*40 (satır aralığı) + 0,97*40 ≈ 89
-    _, (px, _) = pill(LINE, STYLE, 1600, 400, 1.0, (300, 60, 700, 89), 2)
-    assert 37 <= px <= 43
-
-
-def test_pill_shrinks_when_lines_do_not_fit_region():
-    from rsub.layout import pill
-    (x, y, w, h), (px, rows) = pill(TWO_LINE_TR, STYLE, 500, 400, 1.0, *_anchor(1, w=300, x=100))
-    assert len(rows) == 1 and w <= 500 and px < 30
 
 
 def test_pill_leaves_margin_for_game_subtitle_box():
     from rsub.layout import pill
     short = [{"speaker": None, "color": None, "en": "x", "tr": "Ok."}]  # İngilizce uzun, Türkçe çok kısa
-    (x, y, w, h), _ = pill(short, STYLE, 1600, 400, 1.0, (500, 150, 300, 36), 1)
+    (x, y, w, h), _ = pill(short, STYLE, 1600, 400, 1.0, (500, 150, 300, 36))
     assert y <= 150 - 12 and y + h >= 186 + 12  # oyunun kendi koyu kutusu yazıdan ~10-15 px taşar
     assert x <= 500 - 28 and x + w >= 800 + 28  # RDR2: kutu yanlara satır yüksekliğinin ~%75'i kadar taşıyor
 
@@ -163,7 +140,7 @@ def test_text_vertically_centered_in_pill():
 
 def test_blank_pill_covers_without_text():
     from rsub.layout import pill
-    (x, y, w, h), fitted = pill([], STYLE, 1600, 400, 1.0, (500, 150, 300, 36), 1)
+    (x, y, w, h), fitted = pill([], STYLE, 1600, 400, 1.0, (500, 150, 300, 36))
     assert x <= 500 and x + w >= 800 and y <= 150 and y + h >= 186
     img = render([], {**STYLE, "bgOpacity": 1.0, "blur": 0}, w, h, 1.0, fitted=fitted, blank=True)
     assert img is not None and img.size == (w, h)
@@ -171,8 +148,15 @@ def test_blank_pill_covers_without_text():
     assert not any(b[i] > 200 for i in range(0, len(b), 4))  # beyaz yazı yok, sadece zemin
 
 
-def test_font_size_comes_from_hint_not_from_grown_cover():
+
+def test_pill_font_comes_from_style_not_original():
     from rsub.layout import pill
-    # kapatma alanı iki satır yüksekliğine büyümüş (başka yazı karıştı) ama gerçek satır 40 px
-    _, (px, _) = pill(LINE, STYLE, 1600, 400, 1.0, (300, 60, 700, 120), 1, px_hint=40)
-    assert 38 <= px <= 42
+    for orig_h in (30, 80):  # orijinal altyazı küçük de olsa büyük de olsa
+        _, (px, _) = pill(LINE, STYLE, 1600, 400, 1.5, (300, 60, 700, orig_h))
+        assert px == round(STYLE["size"] * 1.5)
+
+
+def test_pill_shrinks_when_text_does_not_fit_region():
+    from rsub.layout import pill
+    (x, y, w, h), (px, rows) = pill(TWO_LINE_TR, STYLE, 300, 60, 1.0, None)
+    assert w <= 300 and h <= 60 and px < STYLE["size"]

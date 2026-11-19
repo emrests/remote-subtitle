@@ -15,7 +15,7 @@
   }
   #bg { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; }
   /* PC'nin çizdiği kutu: konum ve boyut kareye göre yüzde (PC'deki katmanla birebir aynı görünüm) */
-  #cover { position: absolute; display: none; image-rendering: auto; }
+  .cover { position: absolute; display: none; image-rendering: auto; }
   /* ?mode=text: eski serbest konumlu yazı görünümü (Görünüm > Yalnızca TV ayarları) */
   #stage { position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; transform-origin: 0 0; display: none; }
   #status { position: absolute; right: 16px; bottom: 12px; color: #888; font: 20px "Segoe UI", sans-serif; }
@@ -24,7 +24,6 @@
 <body>
 <div id="frame">
   <video id="bg" autoplay muted loop playsinline></video>
-  <img id="cover" alt="">
   <div id="stage"><div id="sub" class="sub-layer sub-bottom"></div></div>
 </div>
 <div id="status">Bağlanıyor…</div>
@@ -36,7 +35,7 @@
   var textMode = q.get("mode") === "text";
   if (q.get("bg")) document.getElementById("bg").src = q.get("bg");
   if (q.get("solid") !== "0" && !q.get("tv")) document.body.classList.add("solid");  // TV'de saydam: altında HDMI görüntüsü
-  var frame = document.getElementById("frame"), cover = document.getElementById("cover");
+  var frame = document.getElementById("frame"), covers = {};  // kutu kimliği ("sub" = altyazı) -> <img>
   var stage = document.getElementById("stage"), sub = document.getElementById("sub"), statusEl = document.getElementById("status");
   var style = null, lines = [];
   if (textMode) stage.style.display = "block";
@@ -56,7 +55,13 @@
   function showCover(msg) {
     if (msg.box) nCovers++;
     if (textMode) return;
-    if (!msg.box) { cover.style.display = "none"; return; }
+    var cover = covers[msg.id || "sub"];
+    if (!msg.box) { if (cover) cover.style.display = "none"; return; }
+    if (!cover) {
+      cover = covers[msg.id || "sub"] = document.createElement("img");
+      cover.className = "cover";
+      frame.insertBefore(cover, document.getElementById("stage"));
+    }
     var b = msg.box;
     cover.style.left = (b[0] * 100) + "%"; cover.style.top = (b[1] * 100) + "%";
     cover.style.width = (b[2] * 100) + "%"; cover.style.height = (b[3] * 100) + "%";
@@ -73,7 +78,7 @@
     sock = up ? ws : null;
     if (up) ping();
     statusEl.textContent = up ? "" : "PC'ye bağlanılamıyor (" + host + "), yeniden deneniyor…";
-    if (!up) cover.style.display = "none";
+    if (!up) for (var id in covers) covers[id].style.display = "none";
   });
 </script>
 </body>

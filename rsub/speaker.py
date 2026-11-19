@@ -7,7 +7,18 @@ NOT_NAMES = {"Note", "Tip", "Hint", "Objective", "Warning", "Time", "Location", 
 NAME = re.compile(r"""(?:^|(?<=[.!?…"] ))([A-Z][\w'.-]*(?: [A-Z][\w'.-]*){0,2}):\s+""")
 
 
-def split_speakers(text: str) -> list[tuple[str | None, str]]:
+def split_speakers(text: str, known=()) -> list[tuple[str | None, str]]:
+    """known: bilinen konuşmacılar. Başta bilinen isimden sonra ":" yerine OCR'ın okuduğu "." ya da ".y" gibi
+    bozukluk varsa ":" sayılır ("Stranger.y It's" → "Stranger: It's")."""
+    for name in known:
+        if re.match(rf"{re.escape(name)}[.,;]\S?\s", text):
+            text = re.sub(rf"^{re.escape(name)}[.,;]\S?\s+", name + ": ", text)
+            break
+        # bilinen isimden önce cümle sonu olmayan parça: silinmekte olan yazının OCR kalıntısı (":nazi wire Stranger: ...")
+        m = re.search(rf"(?<!\w){re.escape(name)}:\s", text)
+        if m and m.start() and text[:m.start()].rstrip()[-1:] not in ".!?…\"”":
+            text = text[m.start():]
+            break
     # "WARNING:" gibi tamamı büyük harfli sistem kelimeleri isim sayılmaz
     hits = [m for m in NAME.finditer(text)
             if not (len(m.group(1)) > 1 and m.group(1).isupper()) and m.group(1) not in NOT_NAMES]

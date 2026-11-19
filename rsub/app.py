@@ -58,6 +58,13 @@ def error_page(message: str) -> str:
             'Bilgisayarı yeniden başlatıp uygulamayı tekrar açın; sorun sürerse bu mesajı paylaşın.</p></body>')
 
 
+def unload_model() -> None:
+    """Çıkışta çeviri modelini Ollama'dan boşalt: oyun ekran kartı belleğini hemen geri alsın."""
+    from . import store
+    from .translate import unload
+    unload(store.load_settings()["model"])
+
+
 def main(argv: list[str] | None = None) -> None:
     p = argparse.ArgumentParser(prog="remote-subtitle")
     p.add_argument("--headless", action="store_true", help="pencere ve tepsi olmadan sadece sunucu")
@@ -114,6 +121,7 @@ def main(argv: list[str] | None = None) -> None:
 
     def quit_app(icon, _item) -> None:
         icon.stop()
+        unload_model()
         os._exit(0)
 
     tray = pystray.Icon("remote-subtitle", Image.open(WEB_DIR / "icon.png"), APP_TITLE,
@@ -121,6 +129,7 @@ def main(argv: list[str] | None = None) -> None:
                                           pystray.MenuItem("Çıkış", quit_app)))
     tray.run_detached()
     webview.start()
+    unload_model()
     os._exit(0)  # pencere bir şekilde yok edilirse süreç de bitsin
 
 

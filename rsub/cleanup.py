@@ -74,5 +74,6 @@ def clean(text, known: set[str]):
     if hasattr(text, "box"):  # OcrText: konum/satır bilgisini taşı
         new = type(text)(result)
         new.box, new.lines = text.box, getattr(text, "lines", 0)
+        new.name_colors = getattr(text, "name_colors", {})
         result = new
     return result, (ok / total if total else 0.0)

@@ -38,3 +38,12 @@ def test_game_labels_are_not_speakers():
     for s in ["Note: Saving is disabled.", "Objective: Find the key.", "Tip: press X", "Hint: look up"]:
         assert split_speakers(s) == [(None, s)]
     assert split_speakers("Arthur: Go. Time: 10:30") == [("Arthur", "Go. Time: 10:30")]
+
+
+def test_known_speaker_with_misread_colon():
+    assert split_speakers("Stranger.y It's not my car.", {"Stranger": {}}) == [("Stranger", "It's not my car.")]
+    assert split_speakers("Stranger. It's here.", {}) == [(None, "Stranger. It's here.")]  # bilinmeyen isim: dokunma
+
+
+def test_junk_before_known_speaker_dropped():
+    assert split_speakers(":nazi wire Stranger: It's a new car.", {"Stranger": {}}) == [("Stranger", "It's a new car.")]

@@ -94,41 +94,17 @@ def _frosted(backdrop, w: int, h: int, radius: float):
     return small.resize((w, h), Image.BILINEAR).convert("RGBA")
 
 
-def _span(lines: list[dict], style: dict, px: int) -> float:
-    """Tüm metin tek satıra yazılsa kaç piksel tutardı."""
-    return sum(r["width"] for r in _rows(lines, style, px, 10 ** 9))
-
-
-def font_px(box_h: float, lines: int) -> float:
-    """OCR kutu yüksekliğinden yazı boyutu: kutu ≈ 0,97·px (tek satır), her ek satır +1,25·px (ölçüldü)."""
-    return box_h / (0.97 + 1.25 * (max(1, lines) - 1))
-
-
-def pill(lines: list[dict], style: dict, region_w: int, region_h: int, scale: float, anchor, anchor_lines=None,
-         px_hint: float | None = None):
-    """Çevirinin kutusu. İngilizce altyazının (anchor: bölgeye göre x,y,w,h) yerine oturur ve onu tamamen kapatır.
-    Orijinalin satır sayısı (anchor_lines) biliniyorsa yazı boyutu orijinal satır yüksekliğinden alınır ve
-    Türkçe aynı sayıda satıra dengeli bölünür; sığmazsa genişler, yine sığmazsa küçülür.
+def pill(lines: list[dict], style: dict, region_w: int, region_h: int, scale: float, anchor):
+    """Çevirinin kutusu. Yazı boyutu Görünüm ayarından (1080p'ye göre ölçeklenir); bölgeye sığmazsa küçülür.
+    İngilizce altyazı biliniyorsa (anchor: bölgeye göre x,y,w,h) kutu onun yerine oturur ve onu tamamen kapatır.
     ((x, y, w, h), (px, satırlar)) döner."""
-    # px_hint: satır sabitlendiği karede ölçülen boyut — kapatma alanı büyüse de yazı büyümez
-    if px_hint:
-        px = max(MIN_PX, round(px_hint))
-    elif anchor and anchor_lines:
-        px = max(MIN_PX, round(font_px(anchor[3], anchor_lines)))
-    else:
-        px = max(MIN_PX, round(style["size"] * scale))
-    n = anchor_lines or None
+    px = max(MIN_PX, round(style["size"] * scale))
     while True:
         padx, pady = round(px * 0.6), round(px * 0.3)
-        inner = max(1, region_w - 2 * padx)
-        limit = min(inner, _span(lines, style, px) / n * 1.08 + px) if n else inner  # n satıra dengeli böl
-        rows = _rows(lines, style, px, limit)
-        while n and len(rows) > n and limit < inner:  # n'e sığmadı: genişle
-            limit = min(inner, limit * 1.15)
-            rows = _rows(lines, style, px, limit)
+        rows = _rows(lines, style, px, max(1, region_w - 2 * padx))
         w = max((r["width"] for r in rows), default=0) + 2 * padx
         h = sum(r["height"] for r in rows) + 2 * pady
-        if (w <= region_w and h <= region_h and (not n or len(rows) <= n)) or px <= MIN_PX:
+        if (w <= region_w and h <= region_h) or px <= MIN_PX:
             break
         px = max(MIN_PX, int(px * 0.9))
     if anchor:
@@ -143,6 +119,18 @@ def pill(lines: list[dict], style: dict, region_w: int, region_h: int, scale: fl
     x = min(max(0, round(cx - w / 2)), region_w - w)
     y = min(max(0, round(cy - h / 2)), region_h - h)
     return (x, y, w, h), (px, rows)
+
+
+def below(size, anchor, region: dict, rect, gap: int = 8) -> tuple[int, int]:
+    """Çeviri kutusunun bölgeye göre (x, y) yeri: orijinal yazının hemen altında, yatayda ortalı.
+    Pencerenin altına taşarsa orijinalin üstüne geçer. Yazının yeri bilinmiyorsa bölgenin altına."""
+    w, h = size
+    ax, ay, aw, ah = anchor or (0, region["height"] - gap, region["width"], 0)
+    x = min(max(0, round(ax + aw / 2 - w / 2)), max(0, region["width"] - w))
+    y = ay + ah + gap
+    if region["top"] + y + h > rect[1] + rect[3]:  # pencereden taşıyor: üstüne
+        y = ay - gap - h
+    return x, y
 
 
 def render(lines: list[dict], style: dict, w: int, h: int, scale: float, backdrop=None, fitted=None, blank=False):
@@ -177,3 +165,24 @@ def render(lines: list[dict], style: dict, w: int, h: int, scale: float, backdro
             x += font.getlength(text + " ")
         top += r["height"]
     return img
+
+
+SOLID_TOL = 18  # kenar piksellerinin ortanca renkten ortalama sapması bunu aşarsa zemin düz renk sayılmaz
+
+
+def edge_color(img) -> str | None:
+    """Kutunun kenar piksellerinin rengi (ek bölgeleri zeminle aynı renkle kapatmak için).
+    Kenarlar düz tek renk değilse (sahne, degrade) None: çağıran siyah kullanır."""
+    import numpy as np
+    a = np.asarray(img.convert("RGB"), dtype=np.float32)
+    edge = np.concatenate([a[0], a[-1], a[:, 0], a[:, -1]])
+    med = np.median(edge, axis=0)
+    if np.abs(edge - med).mean() > SOLID_TOL:
+        return None
+    return "#%02x%02x%02x" % tuple(int(v) for v in med)
+
+
+def ink(bg: str) -> str:
+    """Zemin üstünde okunacak yazı rengi: açık zeminde siyah, koyuda beyaz."""
+    r, g, b, _ = _rgba(bg, 1.0)
+    return "#000000" if 0.299 * r + 0.587 * g + 0.114 * b > 150 else "#ffffff"

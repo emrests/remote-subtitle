@@ -24,7 +24,9 @@ function onMessage(msg) {
     pending.delete(msg.id);
     msg.ok ? p.resolve(msg.data) : p.reject(new Error(msg.error || "Hata"));
   } else if (msg.type === "lines" && msg.lines.length) {
-    S.history = [...S.history, { t: msg.t || Date.now() / 1000, lines: msg.lines }].slice(-20);
+    if (msg.feed === "skip") return;  // sunucu tekrar saydı
+    const entry = { t: msg.t || Date.now() / 1000, lines: msg.lines };
+    S.history = [...(msg.feed === "replace" ? S.history.slice(0, -1) : S.history), entry].slice(-20);
     renderFeed(true);
   } else if (msg.type === "status") {
     S.status = msg.status;
@@ -69,7 +71,7 @@ async function loadState() {
 }
 
 function renderAll() {
-  renderProfiles(); renderStyleForm(); renderPreview(); renderRegion(); renderGlossary(); renderChars(); renderModels(); renderConn(); renderStatus(); renderFeed(false);
+  renderProfiles(); renderStyleForm(); renderPreview(); refreshRegions(); renderGlossary(); renderChars(); renderModels(); renderConn(); renderStatus(); renderFeed(false);
 }
 
 // ---------- üst çubuk ----------
@@ -78,6 +80,8 @@ function renderProfiles() {
   $("profile").replaceChildren(...names.map((n) => new Option(n, n, false, n === S.profile.name)));
 }
 
+// Liste açılırken güncelle: profil başka yerden (başka panel, sunucu) eklenmiş olabilir
+$("profile").onfocus = () => send("get_state").then((d) => { S.profiles = d.profiles; renderProfiles(); }).catch(() => {});
 $("profile").onchange = (e) => act(async () => {
   S.profile = await send("select_profile", { name: e.target.value });
   S.shot = null;
@@ -309,17 +313,78 @@ function tvLink(displays) {
 $("show-pc").onchange = (e) => { S.profile.showPc = e.target.checked; saveProfileSoon(); renderTargets(); };
 $("show-tv").onchange = (e) => { S.profile.showTv = e.target.checked; saveProfileSoon(); renderTargets(); };
 
+// Çizimle değişen bölge: -1 = altyazı, 0.. = ek bölge (extraRegions sırası = öncelik)
+let selRegion = -1;
+const extras = () => (S.profile.extraRegions = S.profile.extraRegions || []);
+const selRect = () => (selRegion < 0 ? S.profile.region : extras()[selRegion].region);
+function setSelRect(r) { if (selRegion < 0) S.profile.region = r; else extras()[selRegion].region = r; }
+const place = (el, [x, y, w, h]) => Object.assign(el.style, { left: x * 100 + "%", top: y * 100 + "%", width: w * 100 + "%", height: h * 100 + "%" });
+
 function renderRegion() {
+  if (selRegion >= extras().length) selRegion = -1;
   const has = !!S.shot;
   $("shot-empty").hidden = has;
   $("shot-img").hidden = !has;
   if (has) $("shot-img").src = S.shot;
-  const [x, y, w, h] = S.profile.region;
   const r = $("region");
   r.hidden = !has;
-  Object.assign(r.style, { left: x * 100 + "%", top: y * 100 + "%", width: w * 100 + "%", height: h * 100 + "%" });
-  $("region-info").textContent = `Bölge: soldan %${Math.round(x * 100)}, üstten %${Math.round(y * 100)}, genişlik %${Math.round(w * 100)}, yükseklik %${Math.round(h * 100)}.`;
+  r.classList.toggle("sel", selRegion < 0);
+  place(r, S.profile.region);
+  $("shot").querySelectorAll(".region.extra").forEach((el) => el.remove());
+  if (has) extras().forEach((x, i) => {
+    const el = document.createElement("div");
+    el.className = "region extra" + (i === selRegion ? " sel" : "");
+    el.innerHTML = "<span></span>";
+    el.firstChild.textContent = `${i + 2}. ${x.name}`;
+    place(el, x.region);
+    $("shot").append(el);
+  });
+  const [x, y, w, h] = selRect();
+  $("region-info").textContent = `${selRegion < 0 ? "Altyazı" : extras()[selRegion].name} bölgesi: soldan %${Math.round(x * 100)}, üstten %${Math.round(y * 100)}, genişlik %${Math.round(w * 100)}, yükseklik %${Math.round(h * 100)}.`;
 }
+// Liste yalnız değişince çizilir (canlı görüntü her saniye renderRegion çağırır; yazılan ad kaybolmasın)
+const refreshRegions = () => { renderRegion(); renderRegionList(); };
+
+function renderRegionList() {
+  const row = (i, label) => {
+    const li = document.createElement("li");
+    li.className = i === selRegion ? "sel" : "";
+    const pick = document.createElement("input");
+    pick.type = "radio"; pick.name = "region-sel"; pick.checked = i === selRegion; pick.title = "Bu bölgeyi çiz";
+    pick.onchange = () => { selRegion = i; refreshRegions(); };
+    li.append(pick);
+    if (i < 0) { li.append("1. Altyazı"); return li; }
+    const name = document.createElement("input");
+    name.type = "text"; name.value = label;
+    name.onfocus = () => {  // listeyi yeniden çizmeden seç (yazılan ad odaktan düşmesin)
+      selRegion = i; renderRegion();
+      $("region-list").querySelectorAll("li").forEach((x, k) => { x.classList.toggle("sel", k - 1 === i); x.firstChild.checked = k - 1 === i; });
+    };
+    name.onchange = () => { extras()[i].name = name.value.trim() || `Bölge ${i + 2}`; saveProfileSoon(); renderRegion(); };
+    const btn = (text, title, fn, disabled) => {
+      const b = document.createElement("button");
+      b.className = "btn ghost"; b.textContent = text; b.title = title; b.disabled = disabled;
+      b.onclick = () => { fn(); saveProfileSoon(); refreshRegions(); };
+      return b;
+    };
+    const move = (d) => { const a = extras(); [a[i], a[i + d]] = [a[i + d], a[i]]; selRegion = i + d; };
+    li.append(`${i + 2}.`, name,
+      btn("↑", "Önceliği artır", () => move(-1), i === 0),
+      btn("↓", "Önceliği azalt", () => move(1), i === extras().length - 1),
+      btn("Sil", "Bölgeyi sil", () => { extras().splice(i, 1); selRegion = -1; }, false));
+    return li;
+  };
+  $("region-list").replaceChildren(row(-1), ...extras().map((x, i) => row(i, x.name)));
+}
+
+$("btn-add-region").onclick = () => {
+  const names = ["Sağ alt", "Sağ üst", "Sol üst", "Sol alt"];
+  const n = extras().length;
+  extras().push({ name: names[n] || `Bölge ${n + 2}`, region: [[0.7, 0.75, 0.28, 0.2], [0.7, 0.03, 0.28, 0.2], [0.02, 0.03, 0.28, 0.2], [0.02, 0.75, 0.28, 0.2]][n % 4] });
+  selRegion = n;
+  saveProfileSoon(); refreshRegions();
+  toast("Bölge eklendi: görüntünün üstüne çizerek yerini ayarlayın");
+};
 
 (() => {
   const wrap = $("shot");
@@ -337,14 +402,14 @@ function renderRegion() {
   wrap.addEventListener("pointermove", (e) => {
     if (!start) return;
     const [px, py] = pt(e);
-    S.profile.region = [Math.min(start[0], px), Math.min(start[1], py), Math.abs(px - start[0]), Math.abs(py - start[1])];
+    setSelRect([Math.min(start[0], px), Math.min(start[1], py), Math.abs(px - start[0]), Math.abs(py - start[1])]);
     renderRegion();
   });
   wrap.addEventListener("pointerup", () => {
     if (!start) return;
     start = null;
     drawing = false;
-    const [, , w, h] = S.profile.region;
+    const [, , w, h] = selRect();
     if (w < 0.02 || h < 0.02) return toast("Bölge çok küçük, daha geniş bir alan çizin");
     saveProfileSoon();
     toast("Bölge kaydedildi");
@@ -357,12 +422,12 @@ function renderStyleForm() {
   const fonts = FONTS.includes(st.font) ? FONTS : [st.font, ...FONTS];
   $("st-font").replaceChildren(...fonts.map((f) => { const o = new Option(f, f, false, f === st.font); o.style.fontFamily = f; return o; }));
   $("st-size").value = st.size; $("o-size").value = st.size + " px";
-  $("st-offset").value = st.offset; $("o-offset").value = st.offset + " px";
   $("st-color").value = st.color; $("st-name").value = st.nameColor; $("st-bg").value = st.bg;
   $("st-op").value = st.bgOpacity; $("o-op").value = "%" + Math.round(st.bgOpacity * 100);
   $("st-blur").value = st.blur ?? 16; $("o-blur").value = (st.blur ?? 16) + " px";
-  $("st-pos").querySelectorAll("button").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.v === st.position)));
   $("st-blurmode").querySelectorAll("button").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.v === (st.blurMode || "live"))));
+  $("st-cover").querySelectorAll("button").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.v === (st.cover || "early"))));
+  $("st-place").querySelectorAll("button").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.v === (st.place || "over"))));
 }
 
 function setStyle(key, value) {
@@ -372,14 +437,14 @@ function setStyle(key, value) {
 }
 $("st-font").onchange = (e) => setStyle("font", e.target.value);
 $("st-size").oninput = (e) => setStyle("size", +e.target.value);
-$("st-offset").oninput = (e) => setStyle("offset", +e.target.value);
 $("st-color").oninput = (e) => setStyle("color", e.target.value);
 $("st-name").oninput = (e) => setStyle("nameColor", e.target.value);
 $("st-bg").oninput = (e) => setStyle("bg", e.target.value);
 $("st-op").oninput = (e) => setStyle("bgOpacity", +e.target.value);
 $("st-blur").oninput = (e) => setStyle("blur", +e.target.value);
-$("st-pos").querySelectorAll("button").forEach((b) => (b.onclick = () => setStyle("position", b.dataset.v)));
 $("st-blurmode").querySelectorAll("button").forEach((b) => (b.onclick = () => setStyle("blurMode", b.dataset.v)));
+$("st-cover").querySelectorAll("button").forEach((b) => (b.onclick = () => setStyle("cover", b.dataset.v)));
+$("st-place").querySelectorAll("button").forEach((b) => (b.onclick = () => setStyle("place", b.dataset.v)));
 
 function renderPreview() {
   const lines = SAMPLE.map((l) => ({ ...l, color: (S.profile.speakers[l.speaker] || {}).color || S.profile.style.nameColor }));

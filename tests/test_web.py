@@ -246,20 +246,6 @@ def test_overlay_pill_follows_english_box():
     assert abs(box["left"] + box["width"] / 2 - (480 + 480)) <= 2  # İngilizcenin merkezinde
 
 
-def test_overlay_uses_original_line_count():
-    a = _overlay_app()
-    a.rt.profile["region"] = [0.1, 0.6, 0.8, 0.35]
-    a.rt.last_lines = [{"speaker": None, "color": None, "en": "x",
-                        "tr": "Pekala, geldiğimiz yolu geri takip edemeyiz. Hadi bu yolu deneyelim o zaman."}]
-    a.rt.text_box, a.rt.text_lines = (500, 60, 700, 135), 3
-    seen = {}
-    real = web.layout.render
-    web.layout.render = lambda *args, **k: (seen.update(rows=len(k["fitted"][1])), real(*args, **k))[1]
-    try:
-        a.sync_overlay((0, 0, 1920, 1080))
-    finally:
-        web.layout.render = real
-    assert seen["rows"] == 3
 
 
 def test_frozen_blur_renders_once_per_line():
@@ -498,3 +484,46 @@ def test_show_on_pc_off_draws_nothing_on_pc():
     a.rt.profile["showPc"] = False
     a.sync_overlay((0, 0, 1920, 1080))
     assert a.overlay.shown == []
+
+
+def test_cover_together_shows_no_blank_box():
+    a = _overlay_app()
+    a.rt.last_lines = []
+    a.rt.pending_box = ((100, 20, 300, 40), 1)  # yeni yazı göründü, çeviri henüz yok
+    a.rt.profile["style"]["cover"] = "together"
+    a.sync_overlay((0, 0, 1920, 1080))
+    assert a.overlay.shown == []  # boş kutu yok
+    a.rt.profile["style"]["cover"] = "early"
+    a.sync_overlay((0, 0, 1920, 1080))
+    assert len(a.overlay.shown) == 1  # varsayılan: hemen kapatır
+
+
+def test_place_below_puts_translation_under_original():
+    a = _overlay_app()  # bölge pencerede (480, 810, 960, 108)
+    a.rt.text_box = (300, 20, 360, 40)  # orijinal yazı: ekranda y 830..870
+    a.rt.profile["style"]["place"] = "below"
+    a.rt.pending_box = ((300, 20, 360, 40), 1)
+    a.sync_overlay((0, 0, 1920, 1080))
+    box, _ = a.overlay.shown[-1]
+    assert box["top"] >= 870 and abs(box["left"] + box["width"] / 2 - (480 + 480)) <= 2  # altında, ortalı; boş kutu yok
+
+
+def test_place_below_flips_above_at_window_bottom():
+    from rsub.layout import below
+    region = {"left": 0, "top": 900, "width": 1000, "height": 180}
+    assert below((200, 50), (400, 20, 200, 40), region, (0, 0, 1920, 1080), gap=8) == (400, 68)  # 968+50 < 1080
+    assert below((200, 50), (400, 120, 200, 40), region, (0, 0, 1920, 1080), gap=8)[1] == 120 - 8 - 50  # taşar: üstüne
+
+
+def test_place_below_position_fixed_while_line_shown():
+    a = _overlay_app()
+    a.rt.profile["style"]["place"] = "below"
+    a.rt.text_box = (300, 20, 200, 40)
+    a.sync_overlay((0, 0, 1920, 1080))
+    first, _ = a.overlay.shown[-1]
+    a.rt.text_box = (250, 10, 400, 60)  # aynı satır, OCR kutusu büyüdü
+    a.sync_overlay((0, 0, 1920, 1080))
+    assert a.overlay.shown[-1][0] == first  # kaymadı
+    a.rt.last_lines = [{"speaker": None, "color": None, "en": "Bye.", "tr": "Hoşça kal."}]  # yeni satır
+    a.sync_overlay((0, 0, 1920, 1080))
+    assert a.overlay.shown[-1][0]["top"] != first["top"]  # yeni satır yeni yere

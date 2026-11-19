@@ -38,8 +38,8 @@ def test_translate_failure_falls_back_to_english():
 
 def test_stable_sequence():
     s = {"prev": None, "sent": ""}
-    # satır 3 kare değişmeden kalınca gönderilir (yazı belirirken yarım okumalar çevrilmesin); silme 2 karede
-    assert [stable(s, t) for t in ["", "Hel", "Hello", "Hello", "Hello", "", ""]] == [None, None, None, None, "Hello", None, ""]
+    # satır 2 kare değişmeden kalınca gönderilir (yazı belirirken yarım okumalar çevrilmesin); silme 2 karede
+    assert [stable(s, t) for t in ["", "Hel", "Hello", "Hello", "Hello", "", ""]] == [None, None, None, "Hello", None, None, ""]
 
 
 def test_run_survives_missing_window(monkeypatch):
@@ -220,17 +220,17 @@ def _feed(frames):
 def test_stable_tolerates_I_l_jitter():
     # gerçek RDR2 ölçümü: OCR her karede I/l arasında gidip geliyordu, satır 0,8 sn gecikiyordu
     out = _feed(["I'm freezing.", "l'm freezing.", "I'm freezing.", "l'm freezing."])
-    assert out[2] is not None and out[3:] == [None]
+    assert out[1] is not None and out[2:] == [None, None]
 
 
 def test_stable_ignores_trailing_junk_after_sent():
     out = _feed(["Let's try this way."] * 3 + ["Let's try this way.••", "Let's try this way.••"])
-    assert out[2] == "Let's try this way." and out[3:] == [None, None]
+    assert out[1] == "Let's try this way." and out[2:] == [None, None, None]
 
 
 def test_stable_emits_genuinely_new_line():
     out = _feed(["Come on, compadre."] * 3 + ["Ain't you a sorry sight?"] * 3)
-    assert out == [None, None, "Come on, compadre.", None, None, "Ain't you a sorry sight?"]
+    assert out == [None, "Come on, compadre.", None, None, "Ain't you a sorry sight?", None]
 
 
 def test_new_line_is_covered_before_translation(monkeypatch):
@@ -299,12 +299,37 @@ def test_single_empty_frame_does_not_clear(monkeypatch):
 
 
 def test_three_empty_frames_clear(monkeypatch):
+    monkeypatch.setattr(pipeline, "HOLD_MIN", 0.0)
     seq = [(LINE_A, B)] * 4 + [("", None)] * 10
     _seq_frame(monkeypatch, seq)
     sent = []
     rt = Runtime(settings={"model": "m"}, profile=copy.deepcopy(P), emit=sent.append)
     _run_briefly(rt, 0.4)
     assert sent[-1]["lines"] == []
+
+
+def test_translation_held_after_subtitle_gone(monkeypatch):
+    # altyazı gidince çeviri hemen kalkmaz (okunamadan kapanıyordu); süre dolunca kalkar
+    monkeypatch.setattr(pipeline, "HOLD_MIN", 0.3)
+    seq = [(LINE_A, B)] * 4 + [("", None)] * 200
+    _seq_frame(monkeypatch, seq)
+    sent = []
+    rt = Runtime(settings={"model": "m"}, profile=copy.deepcopy(P), emit=sent.append)
+    _run_briefly(rt, 0.2)
+    assert sent[-1]["lines"] and rt.hide_at  # altyazı gitti ama çeviri duruyor
+    _seq_frame(monkeypatch, [("", None)])
+    _run_briefly(rt, 0.5)
+    assert sent[-1]["lines"] == [] and rt.hide_at is None
+
+
+def test_new_line_replaces_held_translation(monkeypatch):
+    monkeypatch.setattr(pipeline, "HOLD_MIN", 5.0)
+    seq = [(LINE_A, B)] * 4 + [("", None)] * 3 + [("Totally different words now.", B)] * 10
+    _seq_frame(monkeypatch, seq)
+    sent = []
+    rt = Runtime(settings={"model": "m"}, profile=copy.deepcopy(P), emit=sent.append)
+    _run_briefly(rt, 0.4)
+    assert sent[-1]["lines"][0]["en"] == "Totally different words now." and rt.hide_at is None
 
 
 def test_cover_grows_to_full_line_while_fading_in(monkeypatch):
@@ -326,31 +351,8 @@ def test_real_new_line_switches_after_two_frames(monkeypatch):
     assert any(f[0] is not None for f in frames[5:])  # yeni satır boş kutuyla kapatıldı
 
 
-def test_font_size_fixed_while_line_shown(monkeypatch):
-    normal, tall = (100, 50, 400, 39), (100, 50, 400, 120)  # bir karede altındaki ipucu da okundu
-    seq = [(LINE_A, normal)] * 4 + [(LINE_A, tall)] + [(LINE_A, normal)] * 10
-    _seq_frame(monkeypatch, seq)
-    rt = Runtime(settings={"model": "m"}, profile=copy.deepcopy(P), emit=lambda m: None)
-    sizes = []
-    rt.on_frame = lambda rect, img=None: sizes.append(rt.text_px)
-    _run_briefly(rt, 0.4)
-    shown = [s for s in sizes if s]
-    assert shown and max(shown) - min(shown) < 1  # yazı boyutu satır boyunca sabit
-    assert 38 <= shown[0] <= 42
 
 
-def test_pending_size_not_inherited_by_next_line(monkeypatch):
-    big, small = (100, 50, 400, 80), (100, 50, 400, 39)
-    # gösterilen satır A; iki kare yanlış/büyük okuma (bekleyen kapak açılır), sonra A'ya dönülür; sonra yeni satır B
-    seq = ([(LINE_A, small)] * 4 + [("Zzz qqq vvv www", big), ("Yyy ppp kkk jjj", big)] + [(LINE_A, small)] * 3
-           + [("Totally different words now.", small)] * 8)
-    _seq_frame(monkeypatch, seq)
-    rt = Runtime(settings={"model": "m"}, profile=copy.deepcopy(P), emit=lambda m: None)
-    seen = []
-    rt.on_frame = lambda rect, img=None: seen.append((rt.pending_box, rt.pending_px))
-    _run_briefly(rt, 0.6)
-    pend_px = [px for box, px in seen if box and box[0] == small]  # B için açılan boş kapak
-    assert pend_px and all(px < 45 for px in pend_px)  # iptal edilen büyük kapağın boyutu devralınmaz
 
 
 def test_garbage_reading_is_not_translated(monkeypatch):
@@ -396,10 +398,17 @@ def test_fade_in_partials_not_translated(monkeypatch):
 
 
 def test_real_word_partial_not_translated(monkeypatch):
-    # gerçek akış: belirirken "I tin ink.." (gerçek kelimeler!) 2 kare, sonra "I think.." — ikisi de çevriliyordu
+    # gerçek akış: belirirken "I tin ink.." (gerçek kelimeler!) 2 kare, sonra "I think..". Hız için 2 karelik eşikte
+    # yarım okuma kısa süre gösterilebilir (bilinen bedel); ekranda kalan doğrusu olmalı
     seq = [("I tin ink..", B)] * 2 + [("I think..", B)] * 10
     _seq_frame(monkeypatch, seq)
     sent = []
+    rt = Runtime(settings={"model": "m"}, profile=copy.deepcopy(P), emit=sent.append)
+    _run_briefly(rt, 0.5)
+    assert [m["lines"][0]["en"] for m in sent if m["lines"]][-1] == "I think.."
+    seq = [("I tin ink..", B)] * 1 + [("I think..", B)] * 10  # tek karelik yarım okuma hiç çevrilmez
+    _seq_frame(monkeypatch, seq)
+    sent.clear()
     rt = Runtime(settings={"model": "m"}, profile=copy.deepcopy(P), emit=sent.append)
     _run_briefly(rt, 0.5)
     assert [m["lines"][0]["en"] for m in sent if m["lines"]] == ["I think.."]

@@ -81,9 +81,15 @@
         <div class="shot-wrap" id="shot">
           <div class="shot-empty" id="shot-empty">Kaynaktan bir görüntü alın. Evde chiaki-ng, işte ikinci ekrandaki YouTube penceresini seçebilirsiniz.</div>
           <img id="shot-img" alt="" hidden>
-          <div class="region" id="region" hidden><span>Altyazı bölgesi</span></div>
+          <div class="region" id="region" hidden><span>1. Altyazı</span></div>
         </div>
         <p class="muted" id="region-info"></p>
+        <div class="regions">
+          <b>Çeviri bölgeleri</b>
+          <span class="muted">Seçili bölgeyi görüntünün üstüne çizin. Üstteki önce çevrilir; altyazı her zaman önce gelir.</span>
+          <ol id="region-list"></ol>
+          <button class="btn" id="btn-add-region">+ Bölge ekle</button>
+        </div>
       </div>
     </section>
 
@@ -106,6 +112,9 @@
         </div>
         <div class="panel style-form">
           <div class="field"><label for="st-font">Yazı tipi</label><select id="st-font"></select></div>
+          <div class="field"><label for="st-size">Yazı boyutu</label>
+            <div class="row"><input type="range" id="st-size" min="20" max="96" step="2"><output for="st-size" id="o-size"></output></div></div>
+          <p class="muted">1080p görüntüye göre; çeviri kutusu orijinal altyazıyı yine tamamen kapatır.</p>
           <div class="field"><label for="st-color">Yazı rengi</label><div class="row"><input type="color" id="st-color"></div></div>
           <div class="field"><label for="st-name">İsim rengi</label><div class="row"><input type="color" id="st-name"><span class="muted">Karaktere özel renk yoksa</span></div></div>
           <div class="field"><label for="st-bg">Arka plan</label><div class="row"><input type="color" id="st-bg"></div></div>
@@ -118,18 +127,17 @@
               <button type="button" data-v="live" title="Arkadaki sahneyle birlikte hareket eder; saniyede ~6 kare güncellenir">Canlı</button><button type="button" data-v="frozen" title="Her satırda bir kez hesaplanır; takılmaz ama kamera hareketinde sahneyle uyuşmaz">Sabit</button>
             </div>
           </div>
-          <p class="muted">Bulanıklık, kaynağın üstündeki çeviride orijinal İngilizce altyazıyı okunmaz hale getirir; koyuluğu düşük tutabilirsiniz.</p>
-          <h3 class="form-group">Yalnızca TV gösterim sayfası</h3>
-          <p class="muted">Kaynağın üstündeki çeviri her zaman orijinal altyazının yerine ve boyutuna oturur; bu üç ayar onu etkilemez.</p>
-          <div class="field"><label for="st-pos">Konum</label>
-            <div class="segmented" id="st-pos" role="group" aria-label="Konum">
-              <button type="button" data-v="bottom">Altta</button><button type="button" data-v="top">Üstte</button>
+          <div class="field"><label for="st-place">Çeviri yeri</label>
+            <div class="segmented" id="st-place" role="group" aria-label="Çeviri yeri">
+              <button type="button" data-v="over" title="Çeviri orijinal yazının üstüne oturur ve onu kapatır">Üstüne yaz</button><button type="button" data-v="below" title="Orijinal görünür kalır, çeviri hemen altında (bulanıklık kullanılmaz)">Altına yaz</button>
             </div>
           </div>
-          <div class="field"><label for="st-size">Yazı boyutu</label>
-            <div class="row"><input type="range" id="st-size" min="24" max="96" step="2"><output for="st-size" id="o-size"></output></div></div>
-          <div class="field"><label for="st-offset">Kenara uzaklık</label>
-            <div class="row"><input type="range" id="st-offset" min="0" max="400" step="10"><output for="st-offset" id="o-offset"></output></div></div>
+          <div class="field"><label for="st-cover">Kapatma zamanı</label>
+            <div class="segmented" id="st-cover" role="group" aria-label="Kapatma zamanı">
+              <button type="button" data-v="early" title="Yeni yazı görünür görünmez boş kutuyla kapatılır, çeviri ardından gelir">Önce kapat</button><button type="button" data-v="together" title="Kutu ve çeviri aynı anda gelir; bu arada orijinal yazı kısa süre görünür">Çeviriyle birlikte</button>
+            </div>
+          </div>
+          <p class="muted">Bulanıklık, kaynağın üstündeki çeviride orijinal İngilizce altyazıyı okunmaz hale getirir; koyuluğu düşük tutabilirsiniz.</p>
         </div>
       </div>
     </section>

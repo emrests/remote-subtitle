@@ -47,8 +47,21 @@ def _vowel_class(word: str) -> str:
     return "round" if last in "ou" else "front" if last in "eiy" else "back"
 
 
+# Cümle ortasında büyük harfle yazılsa da isim olmayan sözler ("..., Okay?" → "Okay'i" diye korunuyordu)
+NOT_NAME_WORDS = {"Okay", "Ok", "Yeah", "Yes", "No", "Nope", "Hey", "Wow", "Oh", "Ah", "Uh", "Um", "Hmm",
+                  "Please", "Sorry", "Thanks", "Huh", "Whoa", "Damn", "Shit", "Fuck"}
+
+
+COMMON = 100_000  # sözlük sıklığı bunu aşan kelime isim değildir (she 6M, win 172K; Mark 50K, John 7K, Lucia 125)
+
+
+def _common(word: str) -> bool:
+    from .cleanup import _SP
+    return _SP.word_frequency[_POSSESSIVE.sub("", word).lower()] >= COMMON
+
+
 def _is_name_word(word: str) -> bool:
-    if word == "I" or word.startswith(("I'", "I’")):
+    if word == "I" or word.startswith(("I'", "I’")) or word in NOT_NAME_WORDS:
         return False
     core = _POSSESSIVE.sub("", word)
     return not (len(core) > 1 and core.isupper())  # WARNING, OK gibi
@@ -101,7 +114,7 @@ def protect(text: str, glossary: dict[str, str], known: set[str]) -> tuple[str, 
                 out.append(place(name, name) + phrase[len(name):])  # "Dutch's" → "Zorvak's"
                 run.clear()
         for w in words:
-            if w in used or not _is_name_word(w):
+            if w in used or not _is_name_word(w) or (_common(w) and _POSSESSIVE.sub("", w) not in known):
                 flush()
                 out.append(w)
             else:
@@ -120,10 +133,32 @@ def unprotect(text: str, mapping: dict[str, str]) -> str:
     return text
 
 
+def relevant_context(context: str, text: str) -> str:
+    """Bağlamdaki sözlük cümlelerinden ("Slang meanings: homie/dawg = kanka; cops = aynasızlar") yalnız metinde geçen
+    terimleri bırakır. Ölçüm: 40 terimlik sözlük her satıra gidince kısa satırlar sözlüğe kayıyordu
+    ("Go to bed?" → "Yat bedavaya?", "Bed?" → "Para mı?"); ayrıca istem kısalır."""
+    out = []
+    for part in re.split(r"(?<=[.])\s+", context.strip()):
+        head, sep, body = part.partition(":")
+        if not sep or "=" not in body:
+            out.append(part)  # düz bilgi cümlesi: olduğu gibi
+            continue
+        keep = []
+        for pair in body.rstrip(".").split(";"):
+            terms = pair.split("=")[0]
+            words = [re.sub(r"\(.*?\)", "", t).strip() for t in terms.split("/")]
+            if any(w and re.search(rf"(?<![\w]){re.escape(w)}(?:s|es|ed|ing|in'|er|ers)?(?![\w])", text, re.IGNORECASE) for w in words):
+                keep.append(pair.strip())
+        if keep:
+            out.append(f"{head}: {'; '.join(keep)}.")
+    return " ".join(out)
+
+
 def build_prompt(text: str, glossary: dict[str, str], context: str = "") -> str:
     """context: oyun profilindeki "oyun hakkında" bilgisi. Ölçüm: bağlamsız "ride out" → "bisikletlerimizle",
     "1899 Wild West, outlaws on horseback" bağlamıyla → "atlarımızla"."""
     prompt = PROMPT
+    context = relevant_context(context, text)
     if context.strip():
         prompt = PROMPT.replace("Please translate", f"Context: {context.strip()}. Please translate".replace("..", "."))
     return prompt.format(text=text)
@@ -135,6 +170,16 @@ def _generate(model: str, prompt: str) -> str:
     req = urllib.request.Request(f"{OLLAMA}/api/generate", body, {"Content-Type": "application/json"})
     with urllib.request.urlopen(req, timeout=30) as r:
         return json.load(r)["response"]
+
+
+def unload(model: str) -> None:
+    """Modeli ekran kartı belleğinden hemen boşaltır (çıkışta; yoksa keep_alive süresince 8 GB'ı tutar)."""
+    body = json.dumps({"model": model, "keep_alive": 0}).encode()
+    req = urllib.request.Request(f"{OLLAMA}/api/generate", body, {"Content-Type": "application/json"})
+    try:
+        urllib.request.urlopen(req, timeout=5).close()
+    except Exception:  # Ollama kapalıysa boşaltılacak bir şey yok
+        pass
 
 
 def translate(text: str, model: str, glossary: dict, cache: dict, known: set[str] | None = None,
@@ -154,6 +199,13 @@ def translate(text: str, model: str, glossary: dict, cache: dict, known: set[str
         out = _generate(model, build_prompt(masked, glossary, context)).strip()
         if _REFUSAL.search(out):  # model çeviri yerine "anlayamadım" dedi: çeviri sayma
             raise ValueError("model metni çeviremedi")
+        # model bazen seçenek sunar: "İyi misin? / Bir şey var mı?" ya da '"Sus lan!" veya "Kapa çeneni!"'
+        if " / " in out and "/" not in text:
+            out = out.split(" / ")[0].strip()
+        if m := re.match(r'^(["“].+?["”])\s+(veya|ya da)\s+["“]', out):
+            out = m.group(1)
+        if out[:1] in "\"“”«" and out[-1:] in "\"“”»" and text[:1] not in "\"“”«":  # modelin eklediği tırnak
+            out = out[1:-1].strip()
         if "(" not in text:  # orijinalde parantez yoksa modelin eklediği yorum: "Com? (Bu soruya bir cevap gerekiyor.)"
             out = re.sub(r"\s*\([^)]*\)", "", out).strip()
         cache[key] = unprotect(out, mapping)

@@ -7,7 +7,9 @@ from pathlib import Path
 
 DEFAULT_SETTINGS = {"profile": "Varsayılan", "model": "translategemma:12b", "chiakiPath": "", "running": False, "overlay": True, "ps5Host": ""}
 DEFAULT_STYLE = {"font": "Segoe UI", "size": 48, "color": "#ffffff", "bg": "#000000", "bgOpacity": 0.45,
-                 "position": "bottom", "offset": 60, "nameColor": "#ffd166", "blur": 16, "blurMode": "live"}
+                 "position": "bottom", "offset": 60, "nameColor": "#ffd166", "blur": 16, "blurMode": "live",
+                 "cover": "early",
+                 "place": "over"}  # over: orijinalin üstüne (kapatır); below: orijinalin altına (orijinal görünür)  # early: yeni yazı görünür görünmez boş kutuyla kapat; together: çeviriyle birlikte
 
 
 def home() -> Path:
@@ -17,7 +19,8 @@ def home() -> Path:
 def default_profile(name: str) -> dict:
     return {"name": name, "source": "monitor:1", "region": [0.0, 0.7, 1.0, 0.3],
             "style": dict(DEFAULT_STYLE), "glossary": {}, "speakers": {}, "speakerColor": False, "context": "",
-            "showPc": True, "showTv": True}
+            "showPc": True, "showTv": True,
+            "extraRegions": []}  # [{"name", "region"}]: altyazı dışındaki bölgeler, sıra = öncelik
 
 
 def _path(name: str) -> Path:
@@ -63,15 +66,20 @@ def save_settings(s: dict) -> None:
     _write(home() / "settings.json", s)
 
 
+def _valid_region(r) -> bool:
+    return isinstance(r, list) and len(r) == 4 and all(isinstance(v, (int, float)) for v in r)
+
+
 def load_profile(name: str) -> dict:
     data = _read(_path(name))
     data = data if isinstance(data, dict) else {}
     p = _merge(default_profile(name), data)
     p["name"] = name
     p["style"] = _merge(DEFAULT_STYLE, data.get("style"))
-    r = p["region"]
-    if len(r) != 4 or not all(isinstance(v, (int, float)) for v in r):
+    if not _valid_region(p["region"]):
         p["region"] = default_profile(name)["region"]
+    p["extraRegions"] = [{"name": r["name"], "region": r["region"]} for r in p["extraRegions"]
+                         if isinstance(r, dict) and isinstance(r.get("name"), str) and _valid_region(r.get("region"))]
     p["glossary"] = {k: v for k, v in p["glossary"].items() if isinstance(v, str)}
     p["speakers"] = {k: {"color": v.get("color") if isinstance(v.get("color"), str) else None, "voice": v.get("voice")}
                      for k, v in p["speakers"].items() if isinstance(v, dict)}

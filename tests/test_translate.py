@@ -37,8 +37,8 @@ def test_sentence_start_word_not_protected_unless_known():
 
 
 def test_pronoun_I_and_all_caps_not_protected():
-    assert protect("Yes, I think I'm fine, OK?", {}, set())[1] == {}
-    assert protect("Look out, WARNING ahead.", {}, set())[1] == {}
+    assert translate_mod.protect("Yes, I think I'm fine, OK?", {}, set())[1] == {}
+    assert translate_mod.protect("Look out, WARNING ahead.", {}, set())[1] == {}
 
 
 def test_multiword_name_single_placeholder():
@@ -110,7 +110,7 @@ def test_model_refusal_is_not_a_translation(monkeypatch):
 
 
 def test_word_after_leading_number_is_sentence_start():
-    assert protect("47 Get to the cliff edge", {}, set())[1] == {}
+    assert translate_mod.protect("47 Get to the cliff edge", {}, set())[1] == {}
 
 
 def test_unprotect_suffix_without_apostrophe():
@@ -139,3 +139,55 @@ def test_context_change_is_not_served_from_cache(monkeypatch):
     translate("Ride.", "m", {}, cache, context="")
     translate("Ride.", "m", {}, cache, context="Wild West")
     assert len(prompts) == 2 and "Wild West" in prompts[1]
+
+
+def test_interjection_mid_sentence_not_protected():
+    assert translate_mod.protect("You Okay, miss?", {}, set())[1] == {}
+    assert translate_mod.protect("Just follow me, Okay?", {}, set())[1] == {}
+
+
+def test_model_quotes_removed(monkeypatch):
+    monkeypatch.setattr(translate_mod, "_generate", lambda m, p: '"Sen mi çaldın?"')
+    assert translate("You stole it?", "m", {}, {}) == "Sen mi çaldın?"
+    monkeypatch.setattr(translate_mod, "_generate", lambda m, p: '"Merhaba"')
+    assert translate('"Hello"', "m", {}, {}) == '"Merhaba"'  # orijinalde tırnak varsa kalır
+
+
+def test_model_alternatives_cut_to_first(monkeypatch):
+    monkeypatch.setattr(translate_mod, "_generate", lambda m, p: "İyi misin, güzelim? / Bir şey var mı, hatun?")
+    assert translate("You okay, miss?", "m", {}, {}) == "İyi misin, güzelim?"
+    monkeypatch.setattr(translate_mod, "_generate", lambda m, p: '"Sus lan, aptal herif!" veya "Kapa çeneni, salak!"')
+    assert translate("Shut up, you dumb fuck!", "m", {}, {}) == "Sus lan, aptal herif!"
+
+
+def test_common_words_mid_sentence_not_names():
+    assert translate_mod.protect("You wanna Win in that game.", {}, set())[1] == {}
+    assert translate_mod.protect("Yeah, well, She's a broker.", {}, set())[1] == {}
+    assert list(translate_mod.protect("You know Mark, right?", {}, set())[1].values()) == ["Mark"]
+    assert list(translate_mod.protect("Tell Will to come.", {}, {"Will"})[1].values()) == ["Will"]  # bilinen karakter
+
+
+def test_context_dictionary_keeps_only_terms_in_text():
+    ctx = ("Crime story. Slang meanings: homie/dawg = kanka; bread/paper = para; cops/pigs = aynasızlar. "
+           "Profanity: fuck = siktir; bitch (to a woman) = kaltak. Translate faithfully")
+    rc = translate_mod.relevant_context
+    assert rc(ctx, "Go to bed?") == "Crime story. Translate faithfully"
+    assert rc(ctx, "Nice paperwork.") == "Crime story. Translate faithfully"  # kelime içinde eşleşmez
+    assert rc(ctx, "The pigs are fucking here, bitch.") == (
+        "Crime story. Slang meanings: cops/pigs = aynasızlar. Profanity: fuck = siktir; bitch (to a woman) = kaltak. "
+        "Translate faithfully")
+
+
+def test_unload_sends_keep_alive_zero(monkeypatch):
+    import json
+    sent = []
+
+    class R:
+        def close(self): pass
+    monkeypatch.setattr(translate_mod.urllib.request, "urlopen", lambda req, timeout: sent.append(json.loads(req.data)) or R())
+    translate_mod.unload("translategemma:12b")
+    assert sent == [{"model": "translategemma:12b", "keep_alive": 0}]
+
+    def down(req, timeout): raise OSError("kapalı")
+    monkeypatch.setattr(translate_mod.urllib.request, "urlopen", down)
+    translate_mod.unload("m")  # Ollama kapalıyken hata vermez

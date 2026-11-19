@@ -14,11 +14,13 @@ from .capture import grab, target_rect, to_pixels
 from .ocr import read_best as ocr  # normal okuma, zayıfsa parlak-yazı yöntemi
 from .speaker import split_speakers
 from .cleanup import GARBAGE_BELOW, clean
-from .layout import font_px
 from .translate import translate
 
 SLOW_MS = 1000
 ERROR_PAUSE = 1.0  # beklenmedik hatadan sonra bekleme (sn)
+EXTRA_INTERVAL = 0.5  # ek bölgeler (sağ üst görev yazısı vb.) bu sıklıkta okunur: gecikme önemsiz
+HOLD_MIN, HOLD_MAX = 0.5, 4.0  # altyazı gidince çeviri, gelirken geciktiği kadar (bu sınırlarda) daha kalır (sn)
+SUB_WAIT = 5.0  # ek bölge çevirisi, altyazının çevirisi bitsin diye en çok bu kadar bekler
 
 
 _JITTER = str.maketrans({"I": "l", "|": "l", "1": "l", "’": "'", "‘": "'", "`": "'"})
@@ -57,9 +59,10 @@ def stable(state: dict, text: str, score: float = 1.0) -> str | None:
         state["run"] = 1
         return None
     state["run"] = state.get("run", 1) + 1
-    # yazı belirirken/kaybolurken yarım okunabilir ("I tin ink..", "tinenn"): satır değişmeden 3 kare,
-    # sözlükte olmayan kelime varsa 4 kare kalmadan çevirme. Ekran bu sırada boş kapakla kapalı.
-    if text and state["run"] < (3 if score >= 0.999 else 4):
+    # yazı belirirken/kaybolurken yarım okunabilir ("I tin ink..", "tinenn"): satır değişmeden 2 kare,
+    # sözlükte olmayan kelime varsa 3 kare kalmadan çevirme. Ekran bu sırada boş kapakla kapalı.
+    # ponytail: hız için 3/4'ten indirildi (~0,1 sn); yarım satır çevrilirse geri 3/4 yapılır
+    if text and state["run"] < (2 if score >= 0.999 else 3):
         return None
     if _same(text, state["sent"]):
         if text and _norm(text) == _norm(prev) and score > state.get("score", 1.0) + 0.15:
@@ -73,13 +76,13 @@ def stable(state: dict, text: str, score: float = 1.0) -> str | None:
 def build_lines(text: str, profile: dict, tr: Callable[[str], str]) -> tuple[list[dict], list[str]]:
     """Satırları oluşturur; profili değiştirmez, yeni görülen konuşmacıları döndürür (çağıran ekler)."""
     lines, new = [], []
-    for speaker, en in split_speakers(text):
+    for speaker, en in split_speakers(text, profile["speakers"]):
         color = None
         if speaker:
             known = profile["speakers"].get(speaker)
             if known is None and speaker not in new:
                 new.append(speaker)
-            color = (known or {}).get("color") or profile["style"]["nameColor"]
+            color = (known or {}).get("color") or getattr(text, "name_colors", {}).get(speaker) or profile["style"]["nameColor"]
         try:
             out = tr(en)
         except Exception:  # Ollama kapalı / model yok: satırı düşürme, İngilizcesini göster
@@ -99,21 +102,23 @@ class Runtime:
     last_lines: list = field(default_factory=list)
     model_ready: bool = True  # App, Ollama'da model kurulu mu diye günceller
     text_box: tuple | None = None  # gösterilen İngilizce satırın bölgedeki konumu (OCR'dan)
-    text_lines: int = 0  # orijinal altyazının satır sayısı
-    text_px: float | None = None  # gösterilen satırın yazı boyutu: sabitlendiği tek kareden, satır boyunca sabit
-    pending_px: float | None = None
     pending_box: tuple | None = None  # ((x,y,w,h), satır) — görünen ama henüz çevrilmemiş yeni satır: hemen kapatılır
     diff_frames: int = 0  # gösterilen satırdan farklı okunan ardışık kare sayısı (OCR titremesine karşı)
     empty_frames: int = 0  # yazı okunamayan ardışık kare sayısı
     known_names: set = field(default_factory=set)  # cümle ortasında görülen isimler: cümle başında da korunur
     on_frame: Callable | None = None  # her karede kaynak dikdörtgeniyle (ya da None) çağrılır: katman konumu
+    seen_t: float = 0.0  # yeni satırın ekranda ilk görüldüğü an
+    hold: float = 0.0  # gösterilen çevirinin gecikmesi: altyazı gidince bu kadar daha kalır
+    hide_at: float | None = None  # altyazı gitti, çeviri bu anda kalkacak
+    translating: bool = False  # altyazı çevriliyor: ek bölgeler beklesin (altyazı öncelikli)
+    extras: dict = field(default_factory=dict)  # ek bölge anahtarı -> Extra
+    extra_engine: Any = None  # ek bölgelerin ayrı OCR motoru (altyazı döngüsüyle aynı anda okur)
+    on_extras: Callable | None = None  # (rect, [(anahtar, bölge, Extra, görüntü)]) — ek bölge kutuları
     status: dict = field(default_factory=lambda: {"window": False, "last": None, "avgMs": None,
                                                   "slow": False, "error": None, "running": True})
 
 
-async def run(rt: Runtime, interval: float = 0.1) -> None:
-    state = {"prev": None, "sent": ""}
-
+def _translator(rt: Runtime) -> Callable[[str], str]:
     def tr(en: str) -> str:
         if not rt.model_ready:  # model inerken Ollama'ya istek gönderme (404 döner); İngilizce göster
             rt.status["error"] = "Çeviri modeli hazır değil; hazır olunca çeviri başlar. Şimdilik İngilizce gösteriliyor."
@@ -127,7 +132,21 @@ async def run(rt: Runtime, interval: float = 0.1) -> None:
         except Exception as e:
             rt.status["error"] = f"Çeviri hatası: {e}"
             raise
+    return tr
 
+
+async def _source(rt: Runtime, profile: dict):
+    """(dikdörtgen, PS5 karesi). PS5'te dikdörtgen kare koordinatıdır (0, 0, genişlik, yükseklik).
+    Pencere kapalı/küçültülmüş ya da PS5 bağlanıyorsa dikdörtgen None."""
+    if profile["source"] == ps5.SOURCE:
+        frame = await asyncio.to_thread(ps5.stream.latest, rt.settings.get("ps5Host", ""))
+        return ((0, 0, *frame.size) if frame is not None else None), frame
+    return target_rect(profile["source"]), None
+
+
+async def run(rt: Runtime, interval: float = 0.1) -> None:
+    state = {"prev": None, "sent": ""}
+    tr = _translator(rt)
     with mss.MSS() as sct:
         while True:
             t0 = time.perf_counter()
@@ -150,25 +169,25 @@ def _track_cover(rt: Runtime, state: dict, text) -> None:
     if not (text and box):
         rt.empty_frames += 1
         if rt.empty_frames >= 2:  # yazı gitti: çevrilmemiş boş kapak da kalksın (yoksa boş kutu asılı kalıyordu)
-            rt.pending_box = rt.pending_px = None
+            rt.pending_box = None
         return
     rt.empty_frames = 0
     if state["sent"] and _same(text, state["sent"]):
         rt.diff_frames = 0
-        rt.pending_box = rt.pending_px = None
+        rt.pending_box = None
         rt.text_box = _union(rt.text_box, box)
         return
     rt.diff_frames += 1
     if not rt.last_lines or rt.diff_frames >= 2:
+        if rt.pending_box is None:
+            rt.seen_t = time.monotonic() - (0.1 * (rt.diff_frames - 1) if rt.last_lines else 0)
         prev = rt.pending_box[0] if rt.pending_box else None
         rt.pending_box = (_union(prev, box), getattr(text, "lines", 0))
-        if rt.pending_px is None:
-            rt.pending_px = font_px(box[3], getattr(text, "lines", 0))
 
 
 def _clear(rt: Runtime, state: dict) -> None:
+    rt.hide_at = None
     rt.text_box = None
-    rt.text_px = rt.pending_px = None
     rt.pending_box = None
     if rt.last_lines:  # eski altyazı TV'de asılı kalmasın
         rt.last_lines = []
@@ -190,11 +209,7 @@ async def _frame(rt: Runtime, sct, state: dict, tr, t0: float) -> None:
         await asyncio.sleep(0.3)
         return
     profile = rt.profile  # panel her an değiştirebilir; her karede yeniden okunur
-    if profile["source"] == ps5.SOURCE:  # PS5'ten doğrudan: kare koordinatı = (0, 0, genişlik, yükseklik)
-        frame = await asyncio.to_thread(ps5.stream.latest, rt.settings.get("ps5Host", ""))
-        rect = (0, 0, *frame.size) if frame is not None else None
-    else:
-        rect = target_rect(profile["source"])
+    rect, frame = await _source(rt, profile)
     rt.status["window"] = rect is not None
     rt.status["ps5Error"] = ps5.stream.error if profile["source"] == ps5.SOURCE else None
     if rect is None:  # pencere kapandı/küçüldü ya da PS5 bağlanıyor
@@ -204,7 +219,7 @@ async def _frame(rt: Runtime, sct, state: dict, tr, t0: float) -> None:
         await asyncio.sleep(1)
         return
     box = to_pixels(profile["region"], rect)
-    shot = ps5.crop(frame, box) if profile["source"] == ps5.SOURCE else grab(sct, box)
+    shot = ps5.crop(frame, box) if frame is not None else grab(sct, box)
     t1 = time.perf_counter()
     region_img = Image.frombytes("RGB", shot.size, shot.rgb) if shot is not None and rt.on_frame else None
     rt.known_names.update(rt.profile["speakers"])
@@ -217,25 +232,41 @@ async def _frame(rt: Runtime, sct, state: dict, tr, t0: float) -> None:
     if rt.on_frame:
         rt.on_frame(rect, region_img)
     line = stable(state, text, score)
+    if rt.hide_at and time.monotonic() >= rt.hide_at:  # okuma süresi doldu: çeviriyi kaldır
+        rt.hide_at, rt.last_lines, rt.text_box = None, [], None
+        rt.emit({"type": "lines", "lines": []})
+        if rt.on_frame:
+            rt.on_frame(rect, region_img)
     if line is None:
         return
-    lines, new = await asyncio.to_thread(build_lines, line, profile, tr)
+    if not line:  # altyazı gitti: okunabilsin diye çeviri, gelirken geciktiği kadar daha kalsın
+        if rt.last_lines and rt.hide_at is None:
+            rt.hide_at = time.monotonic() + min(HOLD_MAX, max(HOLD_MIN, rt.hold))
+        return
+    rt.translating = True
+    try:
+        lines, new = await asyncio.to_thread(build_lines, line, profile, tr)
+    finally:
+        rt.translating = False
     t3 = time.perf_counter()
     rt.last_lines = lines
+    rt.hide_at = None
+    rt.hold = time.monotonic() - rt.seen_t if rt.seen_t else 0.0
     rt.text_box = _union(rt.pending_box[0] if rt.pending_box else None, getattr(line, "box", None))
-    rt.text_lines = getattr(line, "lines", 0)
-    lb = getattr(line, "box", None)
-    rt.text_px = font_px(lb[3], rt.text_lines) if lb else None
-    rt.pending_box = rt.pending_px = None
+    rt.pending_box = None
     rt.diff_frames = 0
     rt.emit({"type": "lines", "lines": lines})
     if rt.on_frame:
         rt.on_frame(rect, region_img)
     # Yeni konuşmacılar döngü iş parçacığında eklenir (panel komutlarıyla yarışmasın);
     # panel bu arada profili değiştirdiyse eski profile yazılmaz.
-    if new and rt.profile is profile:
+    seen = getattr(line, "name_colors", {})
+    colorless = [n for n, c in seen.items() if n in profile["speakers"] and not profile["speakers"][n].get("color")]
+    if (new or colorless) and rt.profile is profile:
         for name in new:
-            profile["speakers"].setdefault(name, {"color": None, "voice": None})
+            profile["speakers"].setdefault(name, {"color": seen.get(name), "voice": None})
+        for name in colorless:  # oyunun kendi isim rengi: panelden değiştirilebilir
+            profile["speakers"][name]["color"] = seen[name]
         store.save_profile(profile)
     if line:
         rt.timings.append(round(1000 * (t3 - t0)))
@@ -243,3 +274,73 @@ async def _frame(rt: Runtime, sct, state: dict, tr, t0: float) -> None:
         rt.status.update(last={"capture": round(1000 * (t1 - t0)), "ocr": round(1000 * (t2 - t1)),
                                "translate": round(1000 * (t3 - t2))},
                          avgMs=avg, slow=avg > SLOW_MS, lastLine={"en": line, "lines": lines})
+
+
+@dataclass
+class Extra:
+    """Bir ek bölgenin durumu: altyazıdan bağımsız sabitleme ve son çeviri."""
+    state: dict = field(default_factory=lambda: {"prev": None, "sent": ""})
+    lines: list = field(default_factory=list)
+    box: tuple | None = None  # yazının bölgedeki konumu (OCR'dan)
+
+
+def extra_key(r: dict) -> str:
+    """Bölge adı ya da yeri değişince durumu sıfırlansın diye ikisinden oluşur."""
+    return f"{r['name']}|{list(r['region'])}"
+
+
+async def run_extras(rt: Runtime, interval: float = EXTRA_INTERVAL) -> None:
+    """Ek bölgeler: yavaş döngü, öncelik sırasıyla (listedeki sıra). Altyazı çevrilirken ya da yeni altyazı
+    belirmişken çeviriye başlamaz; altyazı hiç beklemez."""
+    tr = _translator(rt)
+    with mss.MSS() as sct:
+        while True:
+            await asyncio.sleep(interval)
+            try:
+                await _extras_frame(rt, sct, tr)
+            except Exception as e:  # ek bölgedeki hata altyazıyı durdurmasın
+                rt.status["error"] = f"Ek bölge okuma hatası: {e}"
+                await asyncio.sleep(ERROR_PAUSE)
+
+
+async def _extras_frame(rt: Runtime, sct, tr) -> None:
+    profile = rt.profile
+    regions = profile.get("extraRegions") or []
+    rect, frame = None, None
+    if regions and rt.settings.get("running", True) and (rt.extra_engine or rt.engine) is not None:
+        rect, frame = await _source(rt, profile)
+    if rect is None:
+        rt.extras.clear()
+        if rt.on_extras:
+            rt.on_extras(None, [])
+        return
+    keys = [extra_key(r) for r in regions]
+    rt.extras = {k: rt.extras.get(k) or Extra() for k in keys}
+    items = []
+    for key, r in zip(keys, regions):
+        ex = rt.extras[key]
+        box = to_pixels(r["region"], rect)
+        shot = ps5.crop(frame, box) if frame is not None else grab(sct, box)
+        img = Image.frombytes("RGB", shot.size, shot.rgb) if shot is not None and rt.on_extras else None
+        text = await ocr(rt.extra_engine or rt.engine, shot, rt.known_names)
+        text, score = clean(text, rt.known_names) if text else (text, 0.0)
+        if text and score < GARBAGE_BELOW:
+            text = ""
+        line = stable(ex.state, text, score)
+        if line is not None:
+            if line:
+                for _ in range(int(SUB_WAIT / 0.05)):  # altyazı öncelikli
+                    if not (rt.translating or rt.pending_box):
+                        break
+                    await asyncio.sleep(0.05)
+                try:
+                    out = await asyncio.to_thread(tr, str(line))
+                except Exception:  # Ollama kapalı / model yok: İngilizcesini göster
+                    out = str(line)
+                ex.lines = [{"speaker": None, "color": None, "en": str(line), "tr": out}]
+            else:
+                ex.lines = []
+            ex.box = getattr(line, "box", None)
+        items.append((key, r["region"], ex, img))
+    if rt.on_extras:
+        rt.on_extras(rect, items)

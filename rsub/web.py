@@ -25,7 +25,7 @@ from . import capture, layout, ps5, store, tizen_cert, tizen_device
 from .tizen_sign import sign_wgt
 from .models import gpu_vram_mb, installed, model_infos, ollama_up, pull, recommend, start_ollama
 from .ocr import make_ocr, ocr_language
-from .pipeline import Runtime, _same, run
+from .pipeline import Runtime, _same, extra_key, run, run_extras
 
 PORT = 8765
 # PyInstaller paketinde dosyalar _MEIPASS altında
@@ -99,9 +99,14 @@ class App:
             store.save_settings(settings)
         self.rt = Runtime(settings, store.load_profile(settings["profile"]), self._emit)
         self.rt.on_frame = self.sync_overlay
+        self.rt.on_extras = self.sync_extras
         self.overlay = None  # serve_app gerçek katmanı bağlar; testler sahtesini
+        self.make_overlay: Callable | None = None  # ek bölgelerin katmanları (serve_app bağlar)
+        self.extra_overlays: dict = {}  # ek bölge anahtarı -> katman
+        self._extra_keys: dict = {}  # ek bölge anahtarı -> gösterilen kutunun özeti (değişmediyse yeniden çizme)
         self.history: deque = deque(maxlen=20)  # paneldeki çeviri akışı
         self._overlay_key = None
+        self._below_pos = None  # (satırlar, bölge, x, y): altta modunda konum satır boyunca sabit
         self._tv_cover = False  # TV'ye kutu gönderildi ve henüz kaldırılmadı
         self.clients: set = set()
         self.displays: set = set()  # /display adresinden bağlanan gösterim ekranları (TV, ikinci ekran)
@@ -121,8 +126,7 @@ class App:
     def _emit(self, msg: dict) -> None:
         if msg["type"] == "lines" and msg["lines"]:
             entry = {"t": time.time(), "lines": msg["lines"]}
-            self._remember(entry)
-            msg = {**msg, "t": entry["t"]}
+            msg = {**msg, "t": entry["t"], "feed": self._remember(entry)}  # panel akışı da aynı ayıklamayı yapsın
         self.broadcast(msg)
         if msg["type"] == "lines" and any(l["speaker"] for l in msg["lines"]):
             self.broadcast({"type": "profile", "profile": self.rt.profile})  # yeni karakterler panelde görünsün
@@ -143,6 +147,9 @@ class App:
         """Çeviri kutusunu çizer: PC'de kaynak pencerenin üstüne (katman), TV'ye de aynı resmi konumuyla gönderir.
         TV'deki görünüm PC'dekiyle birebir aynı olur (buzlu cam dahil: chiaki karesi = TV karesi)."""
         s, pending = self.rt.settings, self.rt.pending_box
+        below = self.rt.profile["style"].get("place") == "below"
+        if self.rt.profile["style"].get("cover") == "together" or below:  # boş kutu yok: kutu çeviriyle birlikte gelir
+            pending = None
         # PS5 kaynağında PC'de oyun penceresi yok: katman yalnız TV'de (rect kare koordinatıdır, ekran değil)
         prof = self.rt.profile
         show_pc = (self.overlay is not None and prof.get("showPc", True)
@@ -152,21 +159,29 @@ class App:
             self.send_displays({"type": "cover", "box": None})
             self._tv_cover = False
         lines = [] if pending else self.rt.last_lines  # yeni satır bekliyorsa eski çeviri değil boş kapak
-        anchor, n = pending if pending else (self.rt.text_box, self.rt.text_lines)
-        px_hint = self.rt.pending_px if pending else self.rt.text_px
+        anchor = pending[0] if pending else self.rt.text_box
         if rect is None or not s.get("running") or not (show_pc or show_tv) or (not pending and not any(l["tr"] for l in lines)):
             self._hide_cover()
             return
         region = capture.to_pixels(self.rt.profile["region"], rect)
         style = self.rt.profile["style"]
         scale = rect[3] / 1080
-        blurred = backdrop is not None and style.get("blur", 0) > 0
-        key = (tuple(region.values()), anchor, n, px_hint, bool(pending), show_pc, show_tv,
+        blurred = backdrop is not None and style.get("blur", 0) > 0 and not below  # altta: zemin bölge dışında
+        if below:  # OCR kutusu satır boyunca büyür/titrer: konum ilk görünüşte sabitlenir, kayma olmaz
+            pin = (json.dumps(lines, sort_keys=True), tuple(region.values()))
+            if not self._below_pos or self._below_pos[0] != pin:
+                self._below_pos = (pin, anchor)
+            anchor = self._below_pos[1]
+        key = (tuple(region.values()), anchor, bool(pending), show_pc, show_tv,
                json.dumps(lines, sort_keys=True), json.dumps(style, sort_keys=True))
         live = style.get("blurMode", "live") == "live"
         if key == self._overlay_key and not (blurred and live):  # canlı bulanıklıkta zemin her karede değişir
             return
-        (x, y, w, h), fitted = layout.pill(lines, style, region["width"], region["height"], scale, anchor, n, px_hint)
+        if below:
+            (x, y, w, h), fitted = layout.pill(lines, style, region["width"], region["height"], scale, None)
+            x, y = layout.below((w, h), anchor, region, rect, gap=round(8 * scale))
+        else:
+            (x, y, w, h), fitted = layout.pill(lines, style, region["width"], region["height"], scale, anchor)
         box = {"left": region["left"] + x, "top": region["top"] + y, "width": w, "height": h}
         img = layout.render(lines, style, w, h, scale, backdrop=backdrop.crop((x, y, x + w, y + h)) if blurred else None,
                             fitted=fitted, blank=bool(pending))
@@ -187,22 +202,72 @@ class App:
                                 "img": "data:image/webp;base64," + base64.b64encode(buf.getvalue()).decode()})
         self._overlay_key = key
 
-    def _remember(self, entry: dict) -> None:
+    def sync_extras(self, rect, items) -> None:
+        """Ek bölgelerin çevirisi: orijinal yazının yerine, zemini düz renkse o renkle, değilse siyahla kapatır."""
+        prof = self.rt.profile
+        show_pc = self.make_overlay is not None and prof.get("showPc", True) and prof["source"] != ps5.SOURCE
+        show_tv = bool(self.displays) and prof.get("showTv", True)
+        style = prof["style"]
+        shown = set()
+        for key, region_rel, ex, img in items:
+            if rect is None or not ex.lines or not (show_pc or show_tv) or not self.rt.settings.get("running"):
+                continue
+            shown.add(key)
+            region = capture.to_pixels(region_rel, rect)
+            sig = (tuple(region.values()), ex.box, show_pc, show_tv, json.dumps(ex.lines), json.dumps(style, sort_keys=True))
+            if self._extra_keys.get(key) == sig:
+                continue
+            scale = rect[3] / 1080
+            (x, y, w, h), _ = layout.pill(ex.lines, style, region["width"], region["height"], scale, ex.box)
+            bg = (layout.edge_color(img.crop((x, y, x + w, y + h))) if img is not None else None) or "#000000"
+            st = {**style, "bg": bg, "bgOpacity": 1.0, "blur": 0, "color": layout.ink(bg)}
+            _, fitted = layout.pill(ex.lines, st, region["width"], region["height"], scale, ex.box)
+            pic = layout.render(ex.lines, st, w, h, scale, fitted=fitted)
+            if pic is None:
+                shown.discard(key)
+                continue
+            box = {"left": region["left"] + x, "top": region["top"] + y, "width": w, "height": h}
+            ov = self.extra_overlays.get(key)
+            if show_pc:
+                ov = self.extra_overlays.setdefault(key, ov or self.make_overlay())
+                ov.show(box, pic)
+            elif ov:
+                ov.hide()
+            if show_tv:
+                fx, fy, fw, fh = capture.video_frame(rect)
+                buf = io.BytesIO()
+                pic.save(buf, "WEBP", quality=90)
+                self.send_displays({"type": "cover", "id": key,
+                                    "box": [(box["left"] - fx) / fw, (box["top"] - fy) / fh, w / fw, h / fh],
+                                    "img": "data:image/webp;base64," + base64.b64encode(buf.getvalue()).decode()})
+            else:  # "TV'de göster" kapalı: TV'de kalan kutu kalksın
+                self.send_displays({"type": "cover", "id": key, "box": None})
+            self._extra_keys[key] = sig
+        for key in set(self._extra_keys) - shown:  # yazısı gitti, bölge silindi ya da durduruldu
+            self._extra_keys.pop(key)
+            self.send_displays({"type": "cover", "id": key, "box": None})
+            if key in self.extra_overlays:
+                self.extra_overlays[key].hide()
+        for key in set(self.extra_overlays) - {extra_key(r) for r in prof.get("extraRegions") or []}:
+            self.extra_overlays.pop(key).close()  # silinen bölgenin penceresi
+
+    def _remember(self, entry: dict) -> str:
         """Çeviri akışına ekler. 2 sn içinde gelen benzer (daha düzgün) okuma eskisinin yerine geçer;
-        3 sn içinde aynı satır tekrar gelirse eklenmez."""
+        3 sn içinde aynı satır tekrar gelirse eklenmez. "add" | "replace" | "skip" döner."""
         en = " ".join(l["en"] for l in entry["lines"])
         for h in reversed(self.history):
             if entry["t"] - h["t"] > 3:
                 break
             if _same(en, " ".join(l["en"] for l in h["lines"])):
-                return
+                return "skip"
         if self.history:
             last = self.history[-1]
             prev_en = " ".join(l["en"] for l in last["lines"])
             if entry["t"] - last["t"] <= 2 and difflib.SequenceMatcher(None, prev_en.lower(), en.lower()).ratio() >= 0.6:
                 self.history[-1] = entry
-                return
+                return "replace"
         self.history.append(entry)
+        return "add"
 
     def status(self) -> dict:
         model = self.rt.settings["model"]
@@ -257,6 +322,7 @@ class App:
         if ws.request.path.split("?")[0].rstrip("/") == "/display":
             self.displays.add(ws)
             self._overlay_key = None  # yeni ekran mevcut kutuyu da alsın
+            self._extra_keys = dict.fromkeys(self._extra_keys)  # ek bölge kutuları da
         try:
             await ws.send(json.dumps({"type": "style", "style": self.rt.profile["style"]}, ensure_ascii=False))
             await ws.send(json.dumps({"type": "status", "status": self.status()}, ensure_ascii=False))
@@ -509,12 +575,14 @@ async def serve_app(port: int = PORT, web_dir: Path = WEB_DIR, on_show=None, rea
     app = App(web_dir, on_show)
     app.ocr_lang = ocr_language()
     app.rt.engine = make_ocr()
+    app.rt.extra_engine = make_ocr()
     from .overlay import Overlay
     app.overlay = Overlay()
+    app.make_overlay = Overlay
     if app.rt.engine is None:
         app.rt.status["error"] = "Windows'ta Latin alfabeli bir OCR dili bulunamadı (Ayarlar > Dil'den İngilizce ya da Türkçe ekleyin)." 
     async with serve(app.handler, "0.0.0.0", port, process_request=app.process_request) as server:
         app.port = server.sockets[0].getsockname()[1]
         if ready:
             ready(app)
-        await asyncio.gather(run(app.rt), app.status_loop())
+        await asyncio.gather(run(app.rt), run_extras(app.rt), app.status_loop())
