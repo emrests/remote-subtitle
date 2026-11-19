@@ -45,3 +45,24 @@ def test_name_color_read_from_pixels():
     got = name_colors(_Frame(img), [line])
     assert got == {"Stranger": "#d68ce6"} and time.perf_counter() - t < 0.01
     assert name_colors(_Frame(img), [NS(words=[NS(text="Okay...", bounding_rect=r(88, 115))])]) == {}
+
+
+def test_stray_hud_text_does_not_stretch_box():
+    # bölgenin üstündeki arayüz sayısı kutuyu oraya kadar uzatıyordu: tek satır çeviri 3 satırlık kutuda kalıyordu
+    for stray, x, y in (("47", 60, 20), ("$1,250", 40, 30), ("ffi", 900, 30)):
+        img = Image.new("RGB", (1200, 324), (40, 50, 60))
+        d = ImageDraw.Draw(img)
+        d.text((350, 250), "Where the hell were you?", font=ImageFont.truetype("C:/Windows/Fonts/segoeui.ttf", 40), fill="white")
+        d.text((x, y), stray, font=ImageFont.truetype("C:/Windows/Fonts/segoeui.ttf", 28), fill="white")
+        text = asyncio.run(ocr(make_ocr(), Shot(img)))
+        assert text == "Where the hell were you?" and text.lines == 1, stray
+        assert text.box[1] >= 240 and text.box[3] <= 60, (stray, text.box)
+
+
+def test_subtitle_lines_keeps_adjacent_lines_drops_far_ones():
+    from types import SimpleNamespace as NS
+    from rsub.ocr import subtitle_lines
+    line = lambda text, y, h=40: NS(text=text, words=[NS(text=text, bounding_rect=NS(x=0, y=y, width=100, height=h))])
+    name, a, b, hud = line("Lenny:", 140), line("We can't go back the way we came.", 190), line("Let's go.", 245), line("47", 0, 28)
+    assert [l.text for l in subtitle_lines([b, hud, a, name])] == ["Lenny:", a.text, b.text]
+    assert subtitle_lines([]) == [] and subtitle_lines([hud]) == [hud]

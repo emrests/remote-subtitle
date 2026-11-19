@@ -103,21 +103,45 @@ def _levels(shot, words) -> list[float]:
     return out
 
 
+def _line_rect(line) -> tuple[float, float]:
+    rs = [wd.bounding_rect for wd in line.words]
+    top = min(r.y for r in rs)
+    return top, max(r.y + r.height for r in rs) - top
+
+
+def subtitle_lines(lines) -> list:
+    """Altyazının satırları: en çok harfli satır ve ona dikey olarak bitişik olanlar (satır arası boşluk satır
+    yüksekliğinden az). Bölgedeki uzak, tek başına yazılar (arayüz sayısı "47", "$1,250", simge okuması "ffi")
+    atılır; yoksa kutu onlara kadar uzuyor, tek satır çeviri 3 satırlık kutuda kalıyordu."""
+    lines = sorted((l for l in lines if l.words and l.text.strip()), key=lambda l: _line_rect(l)[0])
+    if len(lines) < 2:
+        return lines
+    main = max(range(len(lines)), key=lambda i: sum(ch.isalpha() for ch in lines[i].text))
+    near = lambda a, b: _line_rect(b)[0] - sum(_line_rect(a)) <= max(_line_rect(a)[1], _line_rect(b)[1])
+    lo = hi = main
+    while lo > 0 and near(lines[lo - 1], lines[lo]):
+        lo -= 1
+    while hi < len(lines) - 1 and near(lines[hi], lines[hi + 1]):
+        hi += 1
+    return lines[lo:hi + 1]
+
+
 async def ocr(engine, shot, by_color: bool = False) -> OcrText:
     w = DataWriter()
     w.write_bytes(shot.bgra)
     bmp = SoftwareBitmap.create_copy_from_buffer(w.detach_buffer(), BitmapPixelFormat.BGRA8, shot.width, shot.height)
     result = await engine.recognize_async(bmp)
+    lines = subtitle_lines(result.lines)
     if by_color:
         texts = [" ".join(mark_speaker([wd.text for wd in line.words], _levels(shot, line.words)))
-                 for line in result.lines]
+                 for line in lines]
     else:
-        texts = [line.text for line in result.lines]
+        texts = [line.text for line in lines]
     out = OcrText(" ".join(texts).strip())
-    out.lines = sum(1 for line in result.lines if line.text.strip())
+    out.lines = len(lines)
     if hasattr(shot, "bgra"):
-        out.name_colors = name_colors(shot, result.lines)
-    rects = [wd.bounding_rect for line in result.lines for wd in line.words]
+        out.name_colors = name_colors(shot, lines)
+    rects = [wd.bounding_rect for line in lines for wd in line.words]
     if rects:
         x0, y0 = min(r.x for r in rects), min(r.y for r in rects)
         x1, y1 = max(r.x + r.width for r in rects), max(r.y + r.height for r in rects)
