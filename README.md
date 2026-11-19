@@ -1,11 +1,28 @@
-# Remote Subtitle (TR)
+<p align="center">
+  <img src="web/icon.png" width="120" alt="Remote Subtitle simgesi">
+</p>
 
-Oyunlardaki İngilizce altyazıları okuyup **Türkçeye çevirir** ve çeviriyi **Samsung TV'de oyun görüntüsünün
-üstünde** (ya da bilgisayarda oyun penceresinin üstünde) gösterir. Orijinal altyazı kapatılır, yerine Türkçesi
-oturur.
+<h1 align="center">Remote Subtitle (TR)</h1>
 
-Her şey kendi bilgisayarınızda çalışır, internete metin gönderilmez: metni Windows'un kendi OCR'ı okur, çeviriyi
-bilgisayardaki [Ollama](https://ollama.com) yapar.
+<p align="center">
+  Oyunlardaki İngilizce altyazıları canlı olarak Türkçeye çevirir ve <b>TV'de oyun görüntüsünün üstünde</b> gösterir.
+</p>
+
+<p align="center">
+  <a href="../../releases/latest"><img alt="Son sürüm" src="https://img.shields.io/github/v/release/emrests/remote-subtitle?label=s%C3%BCr%C3%BCm"></a>
+  <img alt="Windows" src="https://img.shields.io/badge/Windows-10%20%7C%2011-0078D6">
+  <img alt="Samsung Tizen TV" src="https://img.shields.io/badge/Samsung-Tizen%20TV-1428A0">
+  <a href="LICENSE"><img alt="Lisans: GPL-3.0" src="https://img.shields.io/badge/lisans-GPL--3.0-blue"></a>
+</p>
+
+<p align="center">
+  <img src="docs/images/oyunda.jpg" width="860" alt="Oyunda: İngilizce altyazının hemen altında Türkçe çevirisi">
+  <br><sub>Oyunda: orijinal altyazının altında Türkçesi (<i>Görünüm › Çeviri yeri › Altına yaz</i>). İstenirse çeviri orijinalin üstüne oturup onu kapatır.</sub>
+</p>
+
+Orijinal altyazıyı okur, bilgisayardaki yerel bir çeviri modeliyle çevirir ve çeviriyi orijinalin yerine (ya da
+altına) yerleştirir. Her şey kendi bilgisayarınızda çalışır, internete metin gönderilmez: metni Windows'un kendi OCR'ı
+okur, çeviriyi bilgisayardaki [Ollama](https://ollama.com) yapar. Satır başına çeviri süresi yaklaşık 0,2–0,5 saniyedir.
 
 ```
 PS5 ──HDMI──▶ Samsung TV   (Remote Subtitle TV uygulaması: PS5 görüntüsü + üstünde çeviri)
@@ -15,22 +32,36 @@ PS5 ──HDMI──▶ Samsung TV   (Remote Subtitle TV uygulaması: PS5 görü
 Bilgisayar: PS5 görüntüsü → altyazıyı oku → Türkçeye çevir → kutuyu TV'ye gönder
 ```
 
+## Ekran görüntüleri
+
+<table>
+  <tr>
+    <td width="50%"><img src="docs/images/panel-ceviri-akisi.png" alt="Çeviri akışı"><br><b>Çeviri akışı</b>: son altyazılar, solda orijinali, sağda Türkçesi.</td>
+    <td width="50%"><img src="docs/images/panel-kaynak-bolge.png" alt="Kaynak ve bölge"><br><b>Kaynak ve bölge</b>: görüntü kaynağını seçin, altyazının çıktığı alanı fareyle çizin.</td>
+  </tr>
+  <tr>
+    <td width="50%"><img src="docs/images/panel-oyun-dili.png" alt="Oyun dili"><br><b>Oyun dili</b>: oyunun dünyası, konuşma tarzı ve aranabilir argo/küfür sözlüğü.</td>
+    <td width="50%"><img src="docs/images/panel-gorunum.png" alt="Görünüm"><br><b>Görünüm</b>: yazı, renkler, buzlu cam arka plan; çevirinin üstte mi altta mı duracağı.</td>
+  </tr>
+</table>
+
 ---
 
 ## İçindekiler
 
-1. [Gerekenler](#gerekenler)
-2. [Kurulum](#kurulum) — bir kez yapılır
+1. [Ekran görüntüleri](#ekran-görüntüleri)
+2. [Gerekenler](#gerekenler)
+3. [Kurulum](#kurulum) — bir kez yapılır
    - [Adım 1 — Uygulamayı bilgisayara kurun](#adım-1--uygulamayı-bilgisayara-kurun)
    - [Adım 2 — Görüntü kaynağını bağlayın](#adım-2--görüntü-kaynağını-bağlayın)
    - [Adım 3 — Altyazının yerini gösterin](#adım-3--altyazının-yerini-gösterin)
    - [Adım 4 — TV uygulamasını kurun](#adım-4--tv-uygulamasını-kurun)
-3. [Her oyunda kullanım](#her-oyunda-kullanım)
-4. [Ayarlar](#ayarlar)
-5. [Sorun giderme](#sorun-giderme)
-6. [Kaldırma](#kaldırma)
-7. [Geliştirme](#geliştirme)
-8. [Lisans](#lisans)
+4. [Her oyunda kullanım](#her-oyunda-kullanım)
+5. [Ayarlar](#ayarlar)
+6. [Sorun giderme](#sorun-giderme)
+7. [Kaldırma](#kaldırma)
+8. [Geliştirme](#geliştirme)
+9. [Lisans](#lisans)
 
 ---
 
