@@ -75,3 +75,27 @@ def test_paused_does_not_connect_and_releases_idle(monkeypatch):
     rt = Runtime(settings={"model": "m", "running": False, "ps5Host": "h"}, profile=copy.deepcopy(P), emit=lambda m: None)
     _run(rt, 0.5)
     assert fake.asked == [] and fake.idle_checks >= 1
+
+
+def test_frozen_stream_reconnects(monkeypatch):
+    """Oturum açık görünüp kare gelmiyorsa (sessiz kopma) bağlantı kapatılıp yeniden açılmalı."""
+    class Rec:
+        frame = object()
+        def get_latest_video_frame(self):
+            return self.frame
+    class Sess:
+        is_running = True
+    class Dev:
+        session = Sess()
+    s = ps5.Stream()
+    s.host, s._device, s._receiver = "h", Dev(), Rec()
+    stopped, clock = [], [100.0]
+    monkeypatch.setattr(ps5.time, "monotonic", lambda: clock[0])
+    monkeypatch.setattr(s, "stop", lambda: stopped.append(1))
+    s._frame_at = clock[0]
+    s._receiver.frame = type("F", (), {"to_image": lambda self: "img"})()
+    assert s.latest("h") == "img"          # yeni kare
+    clock[0] += ps5.STALL - 1
+    assert s.latest("h") == "img" and not stopped
+    clock[0] += 2
+    assert s.latest("h") is None and stopped  # aynı kare STALL'dan uzun: yeniden bağlan

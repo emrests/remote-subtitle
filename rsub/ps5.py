@@ -14,6 +14,7 @@ from PIL import Image
 SOURCE = "ps5"
 IDLE_STOP = 60  # çeviri durmuşken bu kadar sn kare istenmezse bağlantı kapanır (PS5 boşuna meşgul kalmasın)
 RETRY = 5       # bağlantı koptuysa yeniden deneme aralığı (sn)
+STALL = 10      # oturum açık görünüp bu kadar sn yeni kare gelmezse akış donmuş sayılır, yeniden bağlanılır
 
 _log = logging.getLogger(__name__)
 
@@ -119,6 +120,8 @@ class Stream:
         self._connecting = False
         self._last_try = 0.0
         self._last_use = 0.0
+        self._frame = None
+        self._frame_at = 0.0
         self._lock = threading.Lock()
 
     @property
@@ -135,6 +138,14 @@ class Stream:
             self._start()
             return None
         frame = self._receiver.get_latest_video_frame() if self._receiver else None
+        now = time.monotonic()
+        if frame is not self._frame:
+            self._frame, self._frame_at = frame, now
+        elif now - self._frame_at > STALL:
+            # PS5 kopma mesajı göndermeden susabiliyor (Wi-Fi, kayıp paket): oturum "açık" kalır, son kare donar
+            _log.warning("PS5 görüntüsü %d sn'dir gelmiyor, yeniden bağlanılıyor", STALL)
+            self.stop()
+            return None
         return frame.to_image() if frame is not None else None
 
     def wait_frame(self, host: str, timeout: float = 15) -> Image.Image | None:
@@ -204,6 +215,7 @@ class Stream:
                 raise RuntimeError("PS5 oturumu açılamadı (chiaki-ng ya da PS uygulaması bağlı olabilir)")
             with self._lock:
                 self._device, self._receiver = dev, rec
+                self._frame, self._frame_at = None, time.monotonic()
             self.error = None
         except Exception as e:  # noqa: BLE001 — durum panelde gösterilir, döngü yeniden dener
             _log.warning("PS5 bağlantısı: %s", e)
